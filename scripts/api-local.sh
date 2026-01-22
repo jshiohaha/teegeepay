@@ -1,0 +1,1 @@
+DATABASE_URL=postgres://user:password@localhost:5432/solana_api RUST_LOG=info RPC_URL=http://localhost:8899 cargo run -p solana-api

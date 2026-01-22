@@ -1,0 +1,74 @@
+[workspace]
+members = [
+    "crates/api",
+]
+resolver = "2"
+
+[profile.release]
+opt-level = "z"   # Optimize for size.
+strip = true      # Automatically strip symbols from the binary.
+lto = true        # Enable Link Time Optimization (LTO)
+codegen-units = 1 # Reduce Parallel Code Generation Units to Increase Optimization
+panic = "abort"
+overflow-checks = true
+
+[profile.dev]
+incremental = true      # Enable incremental compilation for development builds
+codegen-units = 256     # Use more codegen units in dev for faster compilation
+
+[workspace.dependencies]
+#####################
+# Core Dependencies
+#####################
+
+axum = "0.8.8"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_with = "3.16.1"
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "1"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+dotenvy = "0.15"
+reqwest = { version = "^0.13.1", features = ["json", "multipart"] }
+
+########################
+# Solana Dependencies
+########################
+
+solana-instruction = { version = "3.0.0", features = ["serde"] }
+solana-transaction = "3.0.0"
+solana-keypair = "3.0.0"
+solana-signer = "3.0.0"
+solana-pubkey = { version = "3.0.0", features = ["serde"] }
+solana-signature = "3.0.0"
+solana-client = "3.0.0"
+solana-transaction-status = "3.0.0"
+solana-account-decoder = "3.0.0"
+spl-token = "9.0.0"
+spl-token-2022 = "10.0.0"
+spl-associated-token-account = "8.0.0"
+spl-token-confidential-transfer-proof-generation = "0.5.1"
+spl-token-confidential-transfer-proof-extraction = "0.5.1"
+spl-token-2022-interface = "2.1.0"
+spl-token-client = "0.18.0"
+solana-system-interface = { version = "3.0.0", features = ["bincode"] }
+solana-account = { version = "3.0.0", features = ["serde"] }
+solana-hash = "4.0.1"
+solana-program-pack = "3.0.0"
+solana-message = "3.0.0"
+
+########################
+# TODO...
+########################
+
+# rustls = "0.20.8"
+# rustls-native-certs = "0.6.2"
+# tokio-postgres = { version = "0.7.11", features = ["with-chrono-0_4", "with-uuid-1"] }
+# tokio-postgres-rustls = "0.9.0"
+# native-tls = "0.2"
+# postgres-native-tls = "0.5"

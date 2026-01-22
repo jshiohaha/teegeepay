@@ -1,0 +1,50 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: solana_api
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d solana_api"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  sqlx:
+    build:
+      context: .
+      dockerfile: ./crates/api/migrations/Dockerfile
+      target: development
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://user:password@postgres:5432/solana_api
+    command: ["sqlx", "migrate", "run"]
+    restart: "no"
+    volumes:
+      - ./crates/api:/usr/src/app/crates/api:ro
+
+  api:
+    build:
+      context: .
+      dockerfile: crates/api/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgres://user:password@postgres:5432/solana_api
+      RUST_LOG: info
+      RPC_URL: http://host.docker.internal:8899
+    depends_on:
+      postgres:
+        condition: service_healthy
+      sqlx:
+        condition: service_completed_successfully
+
+volumes:
+  postgres_data:
