@@ -1,0 +1,1 @@
+DATABASE_URL=$DATABASE_URL sqlx migrate run --source crates/api/migrations
