@@ -103,7 +103,11 @@ async fn main() -> Result<()> {
 
     let app = routes::create_router(state);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
+    let port: u16 = std::env::var("PORT")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(3000);
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
     tracing::info!("Server listening on {}", listener.local_addr()?);
 
     axum::serve(listener, app).await?;
