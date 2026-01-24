@@ -6,6 +6,6 @@ use std::sync::Arc;
 
 pub fn routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
     Router::new()
-        .route("/auth", post(auth::handler))
+        .route("/", post(auth::handler))
         .with_state(state)
 }
