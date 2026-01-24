@@ -1,4 +1,5 @@
 use crate::AppState;
+use crate::auth::AuthUser;
 use crate::db;
 use crate::handlers::ApiResponse;
 use crate::handlers::AppError;
@@ -59,15 +60,19 @@ pub struct BalancePath {
     pub address: Pubkey,
 }
 
-// WARN: do not ship this in production. Anyone can request the balance of any other token account.
 pub async fn handler(
     State(state): State<Arc<AppState>>,
     Path(path): Path<BalancePath>,
     Query(params): Query<BalanceQuery>,
+    auth_user: AuthUser,
 ) -> Result<ApiResponse<BalanceResponse>, AppError> {
-    if !db::wallet_exists(&state.db, &path.address).await? {
-        return Err(AppError::not_found(anyhow::anyhow!("Wallet not found")));
-    }
+    let Some(wallet) =
+        db::get_user_wallet_by_pubkey(&state.db, &path.address, auth_user.telegram_user_id).await?
+    else {
+        return Err(AppError::not_found(anyhow::anyhow!(
+            "Wallet not found or not authorized"
+        )));
+    };
 
     let (ata, maybe_ata_account) =
         get_maybe_ata(state.rpc_client.clone(), &path.address, &params.mint).await?;
@@ -76,10 +81,6 @@ pub async fn handler(
             "Token account not found"
         )));
     }
-
-    let Some(wallet) = db::get_wallet_by_pubkey(&state.db, &path.address).await? else {
-        return Err(AppError::not_found(anyhow::anyhow!("Wallet not found")));
-    };
 
     let confidential_keys = confidential_keys_for_mint(Arc::new(wallet.keypair), &params.mint)?;
     let (pending_balance, available_balance) = get_confidential_balances_with_keys(

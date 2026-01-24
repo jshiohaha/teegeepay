@@ -99,13 +99,7 @@ pub async fn handler(
     if !setup_token_account_instructions.instructions.is_empty() {
         instructions.extend(setup_token_account_instructions.instructions);
 
-        // if !setup_token_account_instructions
-        //     .additional_signers
-        //     .is_empty()
-        // {
-        //     additional_signers.extend(setup_token_account_instructions.additional_signers);
-        // }
-
+        // Note: additional_signers removed in prepration for returning ix's to the user
         additional_signers.push(ata_authority.clone() as Arc<dyn Signer + Send + Sync>);
     }
 

@@ -1,4 +1,5 @@
 use crate::AppState;
+use crate::auth::AuthUser;
 use crate::db;
 use crate::handlers::{ApiResponse, AppError};
 use crate::solana;
@@ -36,10 +37,22 @@ pub struct TransferResponse {
 
 pub async fn handler(
     State(state): State<Arc<AppState>>,
+    auth_user: AuthUser,
     Json(payload): Json<CreateTransferRequest>,
 ) -> Result<ApiResponse<TransferResponse>, AppError> {
-    if !db::wallet_exists(&state.db, &payload.source).await? {
-        return Err(AppError::not_found(anyhow::anyhow!("Wallet not found")));
+    let Some(wallet) =
+        db::get_user_wallet_by_pubkey(&state.db, &payload.source, auth_user.telegram_user_id)
+            .await?
+    else {
+        return Err(AppError::not_found(anyhow::anyhow!(
+            "Wallet not found or not authorized"
+        )));
+    };
+
+    if wallet.pubkey != payload.source {
+        return Err(AppError::bad_request(anyhow::anyhow!(
+            "Wallet address does not match provided address"
+        )));
     }
 
     if !solana::tokens::is_confidential_mint_enabled(state.rpc_client.clone(), &payload.mint)

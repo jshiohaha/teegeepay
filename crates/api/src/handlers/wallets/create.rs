@@ -1,4 +1,5 @@
 use crate::AppState;
+use crate::auth::AuthUser;
 use crate::db;
 use crate::handlers::ApiResponse;
 use crate::handlers::AppError;
@@ -12,11 +13,12 @@ use solana_signer::Signer;
 use std::sync::Arc;
 use tracing::info;
 
+#[serde_as]
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateWalletRequest {
-    /// External user ID
-    pub id: String,
+    #[serde_as(as = "Option<serde_with::Bytes>")]
+    pub bytes: Option<Vec<u8>>,
 }
 
 #[serde_as]
@@ -29,13 +31,30 @@ pub struct CreateWalletResponse {
 
 pub async fn handler(
     State(state): State<Arc<AppState>>,
+    auth_user: AuthUser,
     Json(payload): Json<CreateWalletRequest>,
 ) -> Result<ApiResponse<CreateWalletResponse>, AppError> {
-    let keypair = Keypair::new();
+    let keypair = if let Some(bytes) = payload.bytes {
+        Keypair::try_from(bytes.as_slice())
+    } else {
+        Ok(Keypair::new())
+    }
+    .map_err(|e| {
+        AppError::internal_server_error(anyhow::anyhow!("failed to create keypair: {}", e))
+    })?;
+
     let pubkey = keypair.pubkey();
 
-    info!("keypair: {:?}", keypair.to_base58_string());
-    info!("pubkey: {:?}", pubkey);
+    db::create_wallet_for_telegram_user(
+        &state.db,
+        auth_user.telegram_user_id,
+        &pubkey,
+        &keypair,
+    )
+    .await
+    .map_err(|e| {
+        AppError::internal_server_error(anyhow::anyhow!("Failed to create wallet: {}", e))
+    })?;
 
     let signature = request_and_confirm(state.rpc_client.clone(), &pubkey, 1 * 10_u64.pow(9))
         .await
@@ -50,15 +69,6 @@ pub async fn handler(
         "Requested airdrop for pubkey={:?} with signature={:?}",
         pubkey, signature
     );
-
-    db::create_user_and_wallet(state.db.clone(), &payload.id, &pubkey, &keypair)
-        .await
-        .map_err(|e| {
-            AppError::internal_server_error(anyhow::anyhow!(
-                "Failed to create user and wallet: {}",
-                e
-            ))
-        })?;
 
     Ok(ApiResponse::new(CreateWalletResponse { pubkey }))
 }

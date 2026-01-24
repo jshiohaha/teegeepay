@@ -1,4 +1,5 @@
 use crate::AppState;
+use crate::auth::AuthUser;
 use crate::db;
 use crate::handlers::ApiResponse;
 use crate::handlers::AppError;
@@ -48,21 +49,26 @@ pub struct WithdrawTokensPath {
 
 pub async fn handler(
     State(state): State<Arc<AppState>>,
+    auth_user: AuthUser,
     Path(path): Path<WithdrawTokensPath>,
     Json(payload): Json<WithdrawTokensRequest>,
 ) -> Result<ApiResponse<WithdrawTokensResponse>, AppError> {
     let address = path.address;
-    let Some(owner) = db::get_wallet_by_pubkey(&state.db, &address).await? else {
-        return Err(AppError::not_found(anyhow::anyhow!("Wallet not found")));
+    let Some(wallet) =
+        db::get_user_wallet_by_pubkey(&state.db, &path.address, auth_user.telegram_user_id).await?
+    else {
+        return Err(AppError::not_found(anyhow::anyhow!(
+            "Wallet not found or not authorized"
+        )));
     };
 
-    if owner.pubkey != address {
+    if wallet.pubkey != address {
         return Err(AppError::bad_request(anyhow::anyhow!(
             "Wallet address does not match provided address"
         )));
     }
 
-    let owner_kp: Arc<dyn Signer + Send + Sync> = Arc::new(owner.keypair);
+    let owner_kp: Arc<dyn Signer + Send + Sync> = Arc::new(wallet.keypair);
     let confidential_keys = confidential_keys_for_mint(owner_kp.clone(), &payload.mint)?;
 
     // TODO: do this conditionally?

@@ -1,3 +1,4 @@
+mod auth;
 mod db;
 mod handlers;
 mod models;
@@ -10,7 +11,7 @@ use anyhow::Result;
 use solana_client::{nonblocking::rpc_client::RpcClient, rpc_config::CommitmentConfig};
 use solana_keypair::Keypair;
 use solana_signer::Signer;
-use spl_token_2022::solana_zk_sdk::encryption::elgamal::ElGamalKeypair;
+use spl_token_2022::solana_zk_sdk::encryption::elgamal::{ElGamalKeypair, ElGamalSecretKey};
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
 use tracing::info;
@@ -21,6 +22,8 @@ pub struct AppState {
     pub rpc_client: Arc<RpcClient>,
     pub elgamal_keypair: Arc<ElGamalKeypair>,
     pub global_authority: Arc<Keypair>,
+    pub telegram_bot_token: String,
+    pub jwt_secret: String,
 }
 
 // TODO: EOD
@@ -70,8 +73,14 @@ async fn main() -> Result<()> {
         CommitmentConfig::confirmed(),
     ));
 
-    let elgamal_keypair = solana::utils::create_keypair_elgamal();
-    let global_authority = solana::utils::create_keypair();
+    let auditor_kp = std::env::var("AUDITOR_KP").expect("AUDITOR_KP must be set");
+    let auditor_kp = solana::utils::kp_from_base58_string(&auditor_kp);
+    let elgamal_keypair = solana::utils::el_gamal_deterministic(&auditor_kp)
+        .map_err(|e| anyhow::anyhow!("Failed to create ElGamal keypair: {}", e))?;
+
+    let authority_kp = std::env::var("AUTHORITY_KP").expect("AUTHORITY_KP must be set");
+    let global_authority = solana::utils::kp_from_base58_string(&authority_kp);
+
     request_and_confirm(
         rpc_client.clone(),
         &global_authority.pubkey(),
@@ -79,11 +88,17 @@ async fn main() -> Result<()> {
     )
     .await?;
 
+    let telegram_bot_token =
+        std::env::var("TELEGRAM_BOT_TOKEN").expect("TELEGRAM_BOT_TOKEN must be set");
+    let jwt_secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");
+
     let state = Arc::new(AppState {
         db: pool,
         rpc_client: rpc_client.clone(),
         elgamal_keypair: Arc::new(elgamal_keypair),
         global_authority: Arc::new(global_authority),
+        telegram_bot_token,
+        jwt_secret,
     });
 
     let app = routes::create_router(state);

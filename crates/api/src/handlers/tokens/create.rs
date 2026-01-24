@@ -25,6 +25,9 @@ pub struct CreateTokenRequest {
     pub symbol: String,
     /// Decimals for the new token
     pub decimals: u8,
+    /// Optional keypair of the new token
+    #[serde_as(as = "Option<DisplayFromStr>")]
+    pub mint_keypair: Option<String>,
 }
 
 #[serde_as]
@@ -42,8 +45,13 @@ pub async fn handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<CreateTokenRequest>,
 ) -> Result<ApiResponse<CreateTokenResponse>, AppError> {
-    let mint = Arc::new(Keypair::new());
-    let mint_pubkey = mint.pubkey();
+    let mint_keypair = payload
+        .mint_keypair
+        .map(|kp| Keypair::from_base58_string(&kp))
+        .unwrap_or(Keypair::new());
+    let mint_keypair = Arc::new(mint_keypair);
+    let mint_pubkey = mint_keypair.pubkey();
+
     info!("New mint: {:?}", mint_pubkey);
 
     let global_authority = state.global_authority.clone();
@@ -52,7 +60,7 @@ pub async fn handler(
         global_authority.clone(),
         global_authority.clone(),
         state.elgamal_keypair.clone(),
-        Some(mint.clone()),
+        Some(mint_keypair.clone()),
         Some(payload.decimals),
     )
     .await?;

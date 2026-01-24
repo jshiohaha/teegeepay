@@ -54,6 +54,110 @@ pub async fn create_user(tx: &mut PgConnection, user_id: &str) -> Result<i64> {
     Ok(user_id)
 }
 
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct TelegramUserRow {
+    pub id: i64,
+    pub user_id: String,
+    pub telegram_user_id: Option<i64>,
+    pub telegram_username: Option<String>,
+    pub telegram_first_name: Option<String>,
+    pub telegram_last_name: Option<String>,
+    pub telegram_language_code: Option<String>,
+    pub telegram_auth_date: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+pub async fn get_user_by_user_id(pool: &PgPool, user_id: &str) -> Result<Option<TelegramUserRow>> {
+    let user = sqlx::query_as::<_, TelegramUserRow>(
+        r#"
+        SELECT *
+        FROM users
+        WHERE user_id = $1
+        "#,
+    )
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(user)
+}
+
+pub async fn upsert_telegram_user(
+    pool: &PgPool,
+    telegram_user_id: i64,
+    username: Option<&str>,
+    first_name: Option<&str>,
+    last_name: Option<&str>,
+    language_code: Option<&str>,
+) -> Result<TelegramUserRow> {
+    let user_id_str = format!("tg:{}", telegram_user_id);
+
+    let user = sqlx::query_as::<_, TelegramUserRow>(
+        r#"
+        INSERT INTO users (
+            user_id,
+            telegram_user_id,
+            telegram_username,
+            telegram_first_name,
+            telegram_last_name,
+            telegram_language_code,
+            telegram_auth_date,
+            created_at,
+            updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW(), NOW())
+        ON CONFLICT (telegram_user_id) DO UPDATE SET
+            telegram_username = EXCLUDED.telegram_username,
+            telegram_first_name = EXCLUDED.telegram_first_name,
+            telegram_last_name = EXCLUDED.telegram_last_name,
+            telegram_language_code = EXCLUDED.telegram_language_code,
+            telegram_auth_date = NOW(),
+            updated_at = NOW()
+        RETURNING *
+        "#,
+    )
+    .bind(&user_id_str)
+    .bind(telegram_user_id)
+    .bind(username)
+    .bind(first_name)
+    .bind(last_name)
+    .bind(language_code)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(user)
+}
+
+/// Create a wallet for an existing Telegram user.
+/// Returns the wallet id, or an error if the user doesn't exist.
+pub async fn create_wallet_for_telegram_user(
+    pool: &PgPool,
+    telegram_user_id: i64,
+    pubkey: &Pubkey,
+    keypair: &Keypair,
+) -> Result<i64> {
+    let user_id_str = format!("tg:{}", telegram_user_id);
+
+    let wallet_id = sqlx::query_scalar::<_, i64>(
+        r#"
+        INSERT INTO wallets (user_id, pubkey, keypair, created_at, updated_at)
+        SELECT u.id, $2, $3, NOW(), NOW()
+        FROM users u
+        WHERE u.user_id = $1
+        RETURNING id
+        "#,
+    )
+    .bind(&user_id_str)
+    .bind(pubkey.to_string())
+    .bind(keypair.to_base58_string())
+    .fetch_one(pool)
+    .await?;
+
+    Ok(wallet_id)
+}
+
+#[allow(dead_code)]
 pub async fn create_user_and_wallet(
     pool: PgPool,
     external_user_id: &str,
@@ -129,6 +233,39 @@ pub async fn get_wallet_by_pubkey(pool: &PgPool, pubkey: &Pubkey) -> Result<Opti
     .bind(pubkey.to_string())
     .fetch_optional(pool)
     .await?;
+
+    wallet
+        .map(|w| Wallet::try_from(w).map_err(|e| anyhow::anyhow!("Failed to parse wallet: {}", e)))
+        .transpose()
+}
+
+/// Get wallet by pubkey, but only if it belongs to the given user.
+/// Returns None if wallet doesn't exist OR if it belongs to a different user.
+pub async fn get_user_wallet_by_pubkey(
+    pool: &PgPool,
+    pubkey: &Pubkey,
+    telegram_user_id: i64,
+) -> Result<Option<Wallet>> {
+    let user_id_str = format!("tg:{}", telegram_user_id);
+
+    let wallet = sqlx::query_as::<_, WalletRow>(
+        r#"
+        SELECT w.*
+        FROM wallets w
+        JOIN users u ON w.user_id = u.id
+        WHERE w.pubkey = $1 AND u.user_id = $2
+        "#,
+    )
+    .bind(pubkey.to_string())
+    .bind(&user_id_str)
+    .fetch_optional(pool)
+    .await?;
+
+    if wallet.is_none() {
+        return Err(anyhow::anyhow!(
+            "User does not have a wallet the provided pubkey"
+        ));
+    }
 
     wallet
         .map(|w| Wallet::try_from(w).map_err(|e| anyhow::anyhow!("Failed to parse wallet: {}", e)))

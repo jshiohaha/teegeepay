@@ -40,6 +40,10 @@ services:
       DATABASE_URL: postgres://user:password@postgres:5432/solana_api
       RUST_LOG: info
       RPC_URL: http://host.docker.internal:8899
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?missing TELEGRAM_BOT_TOKEN}
+      JWT_SECRET: ${JWT_SECRET:?missing JWT_SECRET}
+      AUTHORITY_KP: ${AUTHORITY_KP:?missing AUTHORITY_KP}
+      AUDITOR_KP: ${AUDITOR_KP:?missing AUDITOR_KP}
     depends_on:
       postgres:
         condition: service_healthy

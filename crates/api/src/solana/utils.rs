@@ -9,12 +9,14 @@ use spl_token_2022::solana_zk_sdk::encryption::elgamal::ElGamalKeypair;
 
 use crate::solana::signature_signer::{ConfidentialKeys, SignatureKeyDerivation};
 
-pub fn create_keypair() -> Keypair {
-    Keypair::new()
+pub fn kp_from_base58_string(kp: &str) -> Keypair {
+    Keypair::from_base58_string(kp)
 }
 
-pub fn create_keypair_elgamal() -> ElGamalKeypair {
-    ElGamalKeypair::new_rand()
+pub fn el_gamal_deterministic(kp: &dyn Signer) -> Result<ElGamalKeypair> {
+    let message = b"global_auditor";
+    ElGamalKeypair::new_from_signer(kp, message)
+        .map_err(|e| anyhow::anyhow!("Failed to create ElGamal keypair: {}", e))
 }
 
 /// Derive confidential keys for a given mint and owner.

@@ -1,4 +1,6 @@
+pub mod convert;
 pub mod health;
+pub mod telegram;
 pub mod tokens;
 pub mod transfers;
 pub mod wallets;
