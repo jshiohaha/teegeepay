@@ -67,39 +67,57 @@ const createDevInitData = () => {
 };
 
 export function getTelegramInitData(): string | null {
+    console.log("[TG] getTelegramInitData called, DEV_MODE:", DEV_MODE);
     if (DEV_MODE) {
+        console.log("[TG] returning dev initData");
         return createDevInitData();
     } else {
-        const initData = window.Telegram?.WebApp?.initData;
+        const webApp = window.Telegram?.WebApp;
+        console.log("[TG] window.Telegram exists:", !!window.Telegram);
+        console.log("[TG] window.Telegram.WebApp exists:", !!webApp);
+        console.log("[TG] initData length:", webApp?.initData?.length ?? 0);
+        console.log("[TG] initDataUnsafe:", JSON.stringify(webApp?.initDataUnsafe ?? {}));
+        const initData = webApp?.initData;
         return initData && initData.length > 0 ? initData : null;
     }
 }
 
 export function isTelegramEnvironment(): boolean {
-    return getTelegramInitData() !== null;
+    const result = getTelegramInitData() !== null;
+    console.log("[TG] isTelegramEnvironment:", result);
+    return result;
 }
 
 export function initTelegramWebApp() {
+    console.log("[TG] initTelegramWebApp called");
     if (DEV_MODE) {
+        console.log("[TG] DEV_MODE, skipping init");
         return;
     }
 
     const webApp = getTelegramWebApp();
+    console.log("[TG] webApp exists:", !!webApp);
     if (webApp) {
+        console.log("[TG] calling webApp.ready()");
         webApp.ready();
         webApp.expand?.();
     }
 }
 
 export async function telegramAuth(): Promise<TelegramWebAppAuthResponse> {
+    console.log("[TG] telegramAuth called");
     const initData = getTelegramInitData();
+    console.log("[TG] initData exists:", !!initData, "length:", initData?.length ?? 0);
+    
     if (!initData) {
+        console.error("[TG] ERROR: initData missing");
         throw new Error("Not running inside Telegram (initData missing)");
     }
 
     initTelegramWebApp();
 
     const payload: TelegramWebAppAuthRequest = { initData };
+    console.log("[TG] posting to /api/auth/telegram");
 
     const res = await fetch("/api/auth/telegram", {
         method: "POST",
@@ -107,12 +125,17 @@ export async function telegramAuth(): Promise<TelegramWebAppAuthResponse> {
         body: JSON.stringify(payload),
     });
 
+    console.log("[TG] auth response status:", res.status);
+
     if (!res.ok) {
         const text = await res.text().catch(() => "");
+        console.error("[TG] auth failed:", res.status, text);
         throw new Error(`Auth failed (${res.status}): ${text}`);
     }
 
-    return (await res.json()) as TelegramWebAppAuthResponse;
+    const authResponse = (await res.json()) as TelegramWebAppAuthResponse;
+    console.log("[TG] auth success, user:", authResponse.user?.telegramUserId, "expiresAt:", authResponse.expiresAt);
+    return authResponse;
 }
 
 export async function apiFetch<TResponse>(
