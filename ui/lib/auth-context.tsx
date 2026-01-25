@@ -121,6 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [isTelegram, setIsTelegram] = useState(false);
     const [expiresAt, setExpiresAt] = useState<string | null>(null);
     const isAuthenticatingRef = useRef(false);
+    const hasInitializedRef = useRef(false);
 
     const authenticate = useCallback(async (): Promise<TelegramWebAppAuthResponse> => {
         console.log("[AUTH] authenticate() called, isAuthenticatingRef:", isAuthenticatingRef.current);
@@ -291,6 +292,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
 
     useEffect(() => {
+        // Prevent double initialization (React Strict Mode, HMR, etc.)
+        if (hasInitializedRef.current) {
+            console.log("[AUTH] useEffect skipped - already initialized");
+            return;
+        }
+        hasInitializedRef.current = true;
+        
         console.log("[AUTH] useEffect running, DEV_MODE:", DEV_MODE);
         const init = async () => {
             console.log("[AUTH] init() starting");
@@ -345,12 +353,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
             // If in Telegram environment, auto-authenticate
             if (inTelegram) {
-                console.log("[AUTH] in Telegram, no stored session, calling authenticate()");
+                console.log("[AUTH] in Telegram, no stored session, calling telegramAuth directly");
+                isAuthenticatingRef.current = true;
+                setStatus("loading");
+                setError(null);
+                
                 try {
-                    await authenticate();
-                    console.log("[AUTH] authenticate() succeeded");
+                    const authResponse = await telegramAuth();
+                    console.log("[AUTH] telegramAuth() succeeded");
+                    storeAuth(authResponse);
+                    setToken(authResponse.token);
+                    setUser(authResponse.user);
+                    setExpiresAt(authResponse.expiresAt);
+                    setStatus("authenticated");
                 } catch (err) {
-                    console.error("[AUTH] authenticate() failed in init:", err);
+                    const message = err instanceof Error ? err.message : "Authentication failed";
+                    console.error("[AUTH] telegramAuth() failed in init:", message);
+                    setError(message);
+                    setStatus("error");
+                } finally {
+                    isAuthenticatingRef.current = false;
                 }
             } else {
                 console.log("[AUTH] not in Telegram, no stored session, setting unauthenticated");
@@ -360,7 +382,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         };
 
         init();
-    }, [authenticate]);
+    }, []); // No dependencies - run once on mount
 
     return (
         <AuthContext.Provider
