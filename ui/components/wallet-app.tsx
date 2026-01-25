@@ -7,8 +7,8 @@ import { ReviewScreen } from "@/components/screens/review-screen";
 import { SendScreen } from "@/components/screens/send-screen";
 import { StatusScreen } from "@/components/screens/status-screen";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { AuthGate } from "@/components/auth-gate";
-import { AuthProvider } from "@/lib/auth-context";
+import { SimpleAuthGate } from "@/components/simple-auth-gate";
+import { SimpleAuthProvider } from "@/lib/auth-context-simple";
 import { WalletProvider, useWallet } from "@/lib/wallet-context";
 
 function WalletScreens() {
@@ -41,12 +41,12 @@ function WalletScreens() {
 
 export function WalletApp() {
     return (
-        <AuthProvider>
-            <AuthGate>
+        <SimpleAuthProvider>
+            <SimpleAuthGate>
                 <WalletProvider>
                     <WalletScreens />
                 </WalletProvider>
-            </AuthGate>
-        </AuthProvider>
+            </SimpleAuthGate>
+        </SimpleAuthProvider>
     );
 }

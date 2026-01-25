@@ -183,20 +183,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setStatus("unauthenticated");
     }, []);
 
-    const getExpiresAtValue = useCallback(() => {
-        if (expiresAt) return expiresAt;
-        if (typeof window === "undefined") return null;
-        return localStorage.getItem(EXPIRES_STORAGE_KEY);
-    }, [expiresAt]);
-
     const isTokenExpiringSoon = useCallback(() => {
-        const expiryValue = getExpiresAtValue();
-        if (!expiryValue) return true;
+        // Check both state and localStorage for expiry
+        const expiryValue = expiresAt ?? (typeof window !== "undefined" ? localStorage.getItem(EXPIRES_STORAGE_KEY) : null);
+        if (!expiryValue) {
+            console.log("[AUTH] isTokenExpiringSoon - no expiry value found");
+            return true;
+        }
         const expiryTime = new Date(expiryValue).getTime();
-        if (Number.isNaN(expiryTime)) return true;
+        if (Number.isNaN(expiryTime)) {
+            console.log("[AUTH] isTokenExpiringSoon - invalid expiry time");
+            return true;
+        }
         const now = Date.now();
-        return expiryTime - now < TOKEN_EXPIRY_BUFFER_MS;
-    }, [getExpiresAtValue]);
+        const timeUntilExpiry = expiryTime - now;
+        const expiringSoon = timeUntilExpiry < TOKEN_EXPIRY_BUFFER_MS;
+        console.log("[AUTH] isTokenExpiringSoon -", expiringSoon, "timeUntilExpiry:", timeUntilExpiry, "ms");
+        return expiringSoon;
+    }, [expiresAt]);
 
     const authFetch = useCallback(
         async <T,>(path: string, init?: RequestInit): Promise<T> => {

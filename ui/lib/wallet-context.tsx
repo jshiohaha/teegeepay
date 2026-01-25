@@ -8,7 +8,7 @@ import {
     type ReactNode,
 } from "react";
 
-import { useAuth } from "@/lib/auth-context";
+import { useSimpleAuth } from "@/lib/auth-context-simple";
 
 export type Screen =
     | "onboarding"
@@ -173,7 +173,27 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const [conversion, setConversionData] =
         useState<ConversionData>(initialConversion);
 
-    const { authFetch, status } = useAuth();
+    const { token, status } = useSimpleAuth();
+
+    // Simple authenticated fetch
+    const authFetch = async <T,>(path: string, init?: RequestInit): Promise<T> => {
+        if (!token) {
+            throw new Error("Not authenticated");
+        }
+        const res = await fetch(path, {
+            ...init,
+            headers: {
+                ...init?.headers,
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+            },
+        });
+        if (!res.ok) {
+            const text = await res.text().catch(() => "");
+            throw new Error(`API error (${res.status}): ${text}`);
+        }
+        return res.json();
+    };
 
     const fetchBalances = async (
         address: string,

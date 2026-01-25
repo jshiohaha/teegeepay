@@ -6,7 +6,7 @@ use axum::{
 use jsonwebtoken::{DecodingKey, Validation, decode};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tracing::{info, warn, error, debug};
+use tracing::{debug, error, info, warn};
 
 const DEV_MOCK_TOKEN: &str = "dev_mock_token_for_local_testing";
 const DEV_MOCK_USER_ID: i64 = 123456789;
@@ -64,31 +64,39 @@ impl FromRequestParts<Arc<AppState>> for AuthUser {
     ) -> Result<Self, Self::Rejection> {
         let path = parts.uri.path();
         info!("[AUTH_MW] ========== AUTH MIDDLEWARE ==========");
-        info!("[AUTH_MW] Request path: {}, dev_mode: {}", path, state.dev_mode);
-        
+        info!(
+            "[AUTH_MW] Request path: {}, dev_mode: {}",
+            path, state.dev_mode
+        );
+
         let auth_header = parts
             .headers
             .get(AUTHORIZATION)
             .and_then(|value| value.to_str().ok());
-        
-        debug!("[AUTH_MW] Authorization header present: {}", auth_header.is_some());
-        
-        let auth_header = auth_header
-            .ok_or_else(|| {
-                warn!("[AUTH_MW] Missing Authorization header for path: {}", path);
-                AuthError::unauthorized("Missing Authorization header")
-            })?;
 
-        let token = auth_header
-            .strip_prefix("Bearer ")
-            .ok_or_else(|| {
-                warn!("[AUTH_MW] Invalid Authorization header format for path: {}", path);
-                AuthError::unauthorized("Invalid Authorization header format")
-            })?;
+        debug!(
+            "[AUTH_MW] Authorization header present: {}",
+            auth_header.is_some()
+        );
 
-        debug!("[AUTH_MW] Token length: {}, first 20 chars: {}...", 
-            token.len(), 
-            &token[..token.len().min(20)]);
+        let auth_header = auth_header.ok_or_else(|| {
+            warn!("[AUTH_MW] Missing Authorization header for path: {}", path);
+            AuthError::unauthorized("Missing Authorization header")
+        })?;
+
+        let token = auth_header.strip_prefix("Bearer ").ok_or_else(|| {
+            warn!(
+                "[AUTH_MW] Invalid Authorization header format for path: {}",
+                path
+            );
+            AuthError::unauthorized("Invalid Authorization header format")
+        })?;
+
+        debug!(
+            "[AUTH_MW] Token length: {}, first 20 chars: {}...",
+            token.len(),
+            &token[..token.len().min(20)]
+        );
 
         // Dev mode bypass: accept mock token for local development
         if state.dev_mode && token == DEV_MOCK_TOKEN {
@@ -105,7 +113,7 @@ impl FromRequestParts<Arc<AppState>> for AuthUser {
             return Ok(AuthUser::from(AuthClaims::default()));
         }
 
-        debug!("[AUTH_MW] Attempting JWT decode");
+        debug!("[AUTH_MW] Attempting JWT decode token: {:?}", token);
         let token_data = decode::<AuthClaims>(
             token,
             &DecodingKey::from_secret(state.jwt_secret.as_bytes()),
@@ -113,14 +121,17 @@ impl FromRequestParts<Arc<AppState>> for AuthUser {
         )
         .map_err(|e| {
             error!("[AUTH_MW] JWT decode failed for path {}: {}", path, e);
-            error!("[AUTH_MW] Token (first 50 chars): {}...", &token[..token.len().min(50)]);
+            error!(
+                "[AUTH_MW] Token (first 50 chars): {}...",
+                &token[..token.len().min(50)]
+            );
             AuthError::unauthorized(format!("Invalid token: {}", e))
         })?;
 
-        info!("[AUTH_MW] JWT valid - user_id: {}, username: {:?}, exp: {}", 
-            token_data.claims.telegram_user_id,
-            token_data.claims.username,
-            token_data.claims.exp);
+        info!(
+            "[AUTH_MW] JWT valid - user_id: {}, username: {:?}, exp: {}",
+            token_data.claims.telegram_user_id, token_data.claims.username, token_data.claims.exp
+        );
         info!("[AUTH_MW] ========== AUTH SUCCESS ==========");
 
         Ok(AuthUser::from(token_data.claims))
