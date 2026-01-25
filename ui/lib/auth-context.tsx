@@ -5,6 +5,7 @@ import {
     useCallback,
     useContext,
     useEffect,
+    useRef,
     useState,
     type ReactNode,
 } from "react";
@@ -101,8 +102,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [error, setError] = useState<string | null>(null);
     const [isTelegram, setIsTelegram] = useState(false);
     const [expiresAt, setExpiresAt] = useState<string | null>(null);
+    const isAuthenticatingRef = useRef(false);
 
     const authenticate = useCallback(async (): Promise<TelegramWebAppAuthResponse> => {
+        if (isAuthenticatingRef.current) {
+            // Prevent concurrent auth attempts - wait for existing one
+            throw new Error("Authentication already in progress");
+        }
+        
+        isAuthenticatingRef.current = true;
         setStatus("loading");
         setError(null);
 
@@ -118,6 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 setUser(authResponse.user);
                 setExpiresAt(authResponse.expiresAt);
                 setStatus("authenticated");
+                isAuthenticatingRef.current = false;
                 return authResponse;
             }
 
@@ -127,12 +136,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUser(authResponse.user);
             setExpiresAt(authResponse.expiresAt);
             setStatus("authenticated");
+            isAuthenticatingRef.current = false;
             return authResponse;
         } catch (err) {
             const message =
                 err instanceof Error ? err.message : "Authentication failed";
             setError(message);
             setStatus("error");
+            isAuthenticatingRef.current = false;
             throw err;
         }
     }, []);
@@ -162,15 +173,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const authFetch = useCallback(
         async <T,>(path: string, init?: RequestInit): Promise<T> => {
-            // Refresh token if expiring soon
+            // Refresh token if expiring soon (but not if already authenticating)
             let currentToken = token;
-            if (isTokenExpiringSoon() && isTelegram) {
+            if (isTokenExpiringSoon() && isTelegram && !isAuthenticatingRef.current) {
                 console.log("token expiring soon, refreshing");
-                const refreshed = await authenticate();
-                currentToken =
-                    refreshed?.token ??
-                    localStorage.getItem(TOKEN_STORAGE_KEY) ??
-                    null;
+                try {
+                    const refreshed = await authenticate();
+                    currentToken =
+                        refreshed?.token ??
+                        localStorage.getItem(TOKEN_STORAGE_KEY) ??
+                        null;
+                } catch {
+                    // If refresh fails, continue with current token
+                    currentToken = token ?? localStorage.getItem(TOKEN_STORAGE_KEY);
+                }
             }
 
             console.log("checking current token");
@@ -190,8 +206,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
             console.log("processing fetch response", res.status);
 
-            // If 401, try to refresh and retry once (but don't retry if refresh also fails)
-            if (res.status === 401 && isTelegram) {
+            // If 401, try to refresh and retry once (but not if already authenticating)
+            if (res.status === 401 && isTelegram && !isAuthenticatingRef.current) {
                 try {
                     await authenticate();
                 } catch {
