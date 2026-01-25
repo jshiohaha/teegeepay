@@ -177,22 +177,34 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
     // Simple authenticated fetch
     const authFetch = async <T,>(path: string, init?: RequestInit): Promise<T> => {
+        console.log("[WALLET] authFetch:", path, "token:", !!token);
         if (!token) {
+            console.error("[WALLET] authFetch: No token!");
             throw new Error("Not authenticated");
         }
-        const res = await fetch(path, {
-            ...init,
-            headers: {
-                ...init?.headers,
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-            },
-        });
-        if (!res.ok) {
-            const text = await res.text().catch(() => "");
-            throw new Error(`API error (${res.status}): ${text}`);
+        try {
+            console.log("[WALLET] authFetch: Making request to", path);
+            const res = await fetch(path, {
+                ...init,
+                headers: {
+                    ...init?.headers,
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+            console.log("[WALLET] authFetch: Response status", res.status);
+            if (!res.ok) {
+                const text = await res.text().catch(() => "");
+                console.error("[WALLET] authFetch: Error response", res.status, text);
+                throw new Error(`API error (${res.status}): ${text}`);
+            }
+            const data = await res.json();
+            console.log("[WALLET] authFetch: Success", path);
+            return data;
+        } catch (err) {
+            console.error("[WALLET] authFetch: Exception", err);
+            throw err;
         }
-        return res.json();
     };
 
     const fetchBalances = async (
@@ -295,24 +307,29 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }, [status]);
 
     const createWallet = async () => {
-        console.log("Creating wallet");
-        const response = await authFetch<ApiResponse<CreateWalletResponse>>(
-            "/api/wallets",
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-            },
-        );
-        console.log("Wallet created", response);
+        console.log("[WALLET] createWallet called, token:", !!token);
+        try {
+            const response = await authFetch<ApiResponse<CreateWalletResponse>>(
+                "/api/wallets",
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                },
+            );
+            console.log("[WALLET] Wallet created:", response);
 
-        const address = response.data.pubkey;
-        setWallet({
-            address,
-            solBalance: 0,
-            cusd: { private: 0, public: 0, total: 0 },
-        });
-        setIsWalletCreated(true);
-        setCurrentScreen("balance");
+            const address = response.data.pubkey;
+            setWallet({
+                address,
+                solBalance: 0,
+                cusd: { private: 0, public: 0, total: 0 },
+            });
+            setIsWalletCreated(true);
+            setCurrentScreen("balance");
+        } catch (error) {
+            console.error("[WALLET] createWallet error:", error);
+            throw error;
+        }
     };
 
     const requestAirdrop = async () => {

@@ -95,7 +95,9 @@ export function OnboardingScreen() {
                             Creating Wallet...
                         </span>
                     ) : (
-                        <span className="text-md">Create Wallet</span>
+                        <span className="text-md hover:cursor-pointer">
+                            Create Wallet
+                        </span>
                     )}
                 </Button>
 
