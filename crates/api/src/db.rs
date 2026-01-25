@@ -6,6 +6,7 @@ use solana_keypair::Keypair;
 use solana_pubkey::Pubkey;
 use sqlx::{PgConnection, PgPool, prelude::FromRow};
 use std::str::FromStr;
+use tracing::{info, error, debug};
 
 pub async fn create_wallet(
     tx: &mut PgConnection,
@@ -139,6 +140,8 @@ pub async fn create_wallet_for_telegram_user(
     keypair: &Keypair,
 ) -> Result<i64> {
     let user_id_str = format!("tg:{}", telegram_user_id);
+    info!("[DB] create_wallet_for_telegram_user - telegram_user_id: {}, user_id_str: {}, pubkey: {}", 
+        telegram_user_id, user_id_str, pubkey);
 
     let wallet_id = sqlx::query_scalar::<_, i64>(
         r#"
@@ -161,8 +164,13 @@ pub async fn create_wallet_for_telegram_user(
     .bind(pubkey.to_string())
     .bind(keypair.to_base58_string())
     .fetch_one(pool)
-    .await?;
+    .await
+    .map_err(|e| {
+        error!("[DB] create_wallet_for_telegram_user failed: {}", e);
+        e
+    })?;
 
+    info!("[DB] create_wallet_for_telegram_user success - wallet_id: {}", wallet_id);
     Ok(wallet_id)
 }
 
@@ -318,6 +326,8 @@ pub async fn get_wallets_for_telegram_user(
     telegram_user_id: i64,
 ) -> Result<Vec<Pubkey>> {
     let user_id_str = format!("tg:{}", telegram_user_id);
+    info!("[DB] get_wallets_for_telegram_user - telegram_user_id: {}, user_id_str: {}", 
+        telegram_user_id, user_id_str);
 
     let wallets = sqlx::query_as::<_, (String,)>(
         r#"
@@ -329,7 +339,16 @@ pub async fn get_wallets_for_telegram_user(
     )
     .bind(&user_id_str)
     .fetch_all(pool)
-    .await?;
+    .await
+    .map_err(|e| {
+        error!("[DB] get_wallets_for_telegram_user query failed: {}", e);
+        e
+    })?;
+
+    info!("[DB] get_wallets_for_telegram_user - found {} wallets", wallets.len());
+    for (i, w) in wallets.iter().enumerate() {
+        debug!("[DB] wallet[{}]: {}", i, w.0);
+    }
 
     Ok(wallets
         .into_iter()
