@@ -271,7 +271,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         };
 
         checkExistingWallet();
-    }, [status, authFetch]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [status]);
 
     const createWallet = async () => {
         console.log("Creating wallet");

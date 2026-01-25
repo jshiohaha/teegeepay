@@ -190,9 +190,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
             console.log("processing fetch response", res.status);
 
-            // If 401, try to refresh and retry once
+            // If 401, try to refresh and retry once (but don't retry if refresh also fails)
             if (res.status === 401 && isTelegram) {
-                await authenticate();
+                try {
+                    await authenticate();
+                } catch {
+                    // Auth refresh failed, don't retry
+                    throw new Error("Authentication failed");
+                }
                 const newToken = localStorage.getItem(TOKEN_STORAGE_KEY);
                 if (!newToken) {
                     throw new Error("Failed to refresh authentication");
@@ -209,6 +214,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
                 if (!retryRes.ok) {
                     const text = await retryRes.text().catch(() => "");
+                    // Don't retry again if still 401 - avoid infinite loop
                     throw new Error(`API error (${retryRes.status}): ${text}`);
                 }
 
