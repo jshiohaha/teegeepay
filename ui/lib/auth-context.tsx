@@ -202,8 +202,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             console.log("[AUTH] authFetch called, path:", path);
             console.log("[AUTH] authFetch state - token exists:", !!token, "isTelegram:", isTelegram, "isAuthenticating:", isAuthenticatingRef.current);
             
-            // Refresh token if expiring soon (but not if already authenticating)
-            let currentToken = token;
+            // Always try to get token from localStorage as fallback (state might be stale)
+            let currentToken = token ?? localStorage.getItem(TOKEN_STORAGE_KEY);
+            console.log("[AUTH] authFetch - currentToken from state or localStorage:", !!currentToken);
+            
             const expiringSoon = isTokenExpiringSoon();
             console.log("[AUTH] authFetch - isTokenExpiringSoon:", expiringSoon);
             
@@ -218,7 +220,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     console.log("[AUTH] authFetch - token refreshed");
                 } catch (err) {
                     console.log("[AUTH] authFetch - refresh failed, using existing token:", err);
-                    currentToken = token ?? localStorage.getItem(TOKEN_STORAGE_KEY);
+                    // currentToken already set above, no need to reassign
                 }
             }
 
