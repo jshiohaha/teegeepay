@@ -11,14 +11,16 @@ export function OnboardingScreen() {
     const [isCreating, setIsCreating] = useState(false);
 
     const handleCreate = async () => {
+        console.log("[ONBOARDING] handleCreate clicked!");
         setIsCreating(true);
+        console.log("[ONBOARDING] isCreating set to true, calling createWallet...");
         try {
             await createWallet();
+            console.log("[ONBOARDING] createWallet completed successfully");
             setIsCreating(false);
         } catch (error) {
+            console.error("[ONBOARDING] createWallet failed:", error);
             setIsCreating(false);
-            // TODO: add toasts?
-            // toast.error("Failed to create wallet");
         }
     };
 
@@ -86,7 +88,10 @@ export function OnboardingScreen() {
                 {/* CTA */}
                 <Button
                     className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground"
-                    onClick={handleCreate}
+                    onClick={() => {
+                        console.log("[ONBOARDING] Button onClick fired");
+                        handleCreate();
+                    }}
                     disabled={isCreating}
                 >
                     {isCreating ? (
