@@ -9,17 +9,18 @@ export function OnboardingScreen() {
     const { createWallet } = useWallet();
 
     const [isCreating, setIsCreating] = useState(false);
+    const [debugMsg, setDebugMsg] = useState("Ready");
 
     const handleCreate = async () => {
-        console.log("[ONBOARDING] handleCreate clicked!");
+        setDebugMsg("Clicked!");
         setIsCreating(true);
-        console.log("[ONBOARDING] isCreating set to true, calling createWallet...");
+        setDebugMsg("Creating wallet...");
         try {
             await createWallet();
-            console.log("[ONBOARDING] createWallet completed successfully");
+            setDebugMsg("Success!");
             setIsCreating(false);
         } catch (error) {
-            console.error("[ONBOARDING] createWallet failed:", error);
+            setDebugMsg(`Error: ${error instanceof Error ? error.message : String(error)}`);
             setIsCreating(false);
         }
     };
@@ -108,6 +109,11 @@ export function OnboardingScreen() {
 
                 <p className="text-xs text-muted-foreground text-center mt-4">
                     By continuing, you agree to our Terms of Service
+                </p>
+                
+                {/* Debug message - remove after fixing */}
+                <p className="text-xs text-center mt-2 p-2 bg-yellow-100 text-yellow-800 rounded">
+                    Debug: {debugMsg}
                 </p>
             </div>
         </div>
