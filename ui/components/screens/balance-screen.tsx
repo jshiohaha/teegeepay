@@ -1,6 +1,5 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -120,7 +119,7 @@ export function BalanceScreen() {
                     <div className="flex items-center gap-2">
                         <button
                             onClick={handleCopy}
-                            className="flex-1 flex items-center justify-between p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors"
+                            className="flex-1 flex items-center justify-between p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors hover:cursor-pointer"
                         >
                             <span className="font-mono text-sm text-foreground">
                                 {truncateString(wallet.address)}
@@ -136,7 +135,7 @@ export function BalanceScreen() {
                                 <Button
                                     variant="outline"
                                     size="icon"
-                                    className="h-[46px] w-[46px] shrink-0"
+                                    className="h-[46px] w-[46px] shrink-0 hover:cursor-pointer"
                                     onClick={() =>
                                         openAddressInExplorer(wallet.address)
                                     }
@@ -144,9 +143,7 @@ export function BalanceScreen() {
                                     <ExternalLink className="w-4 h-4" />
                                 </Button>
                             </TooltipTrigger>
-                            <TooltipContent>
-                                View on Solana Explorer
-                            </TooltipContent>
+                            <TooltipContent>View on Explorer</TooltipContent>
                         </Tooltip>
                     </div>
                 </div>
@@ -157,14 +154,14 @@ export function BalanceScreen() {
                         <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-2">
                                 <span className="text-sm font-medium text-muted-foreground">
-                                    cUSD Balance
+                                    Balance
                                 </span>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <button
                                             onClick={handleRefresh}
                                             disabled={isRefreshing || isMinting}
-                                            className="p-1 rounded-md hover:bg-secondary/50 transition-colors disabled:opacity-50"
+                                            className="p-1 rounded-md hover:bg-secondary/50 transition-colors disabled:opacity-50 hover:cursor-pointer"
                                         >
                                             <RefreshCw
                                                 className={`w-3.5 h-3.5 text-muted-foreground ${isRefreshing ? "animate-spin" : ""}`}
@@ -172,13 +169,13 @@ export function BalanceScreen() {
                                         </button>
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                        Refresh balance
+                                        Refresh balances
                                     </TooltipContent>
                                 </Tooltip>
                             </div>
-                            <Badge variant="secondary" className="text-xs">
+                            {/* <Badge variant="secondary" className="text-xs">
                                 Confidential
-                            </Badge>
+                            </Badge> */}
                         </div>
 
                         {/* Total Balance */}
@@ -208,7 +205,7 @@ export function BalanceScreen() {
                                 <button
                                     onClick={() => startConversion("toPublic")}
                                     disabled={wallet.cusd.private === 0}
-                                    className="flex gap-1.5 px-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary/50 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                    className={`flex gap-1.5 px-1 text-xs font-medium text-muted-foreground rounded-md disabled:opacity-40 disabled:cursor-not-allowed ${wallet.cusd.private === 0 ? "opacity-40 cursor-not-allowed" : "hover:cursor-pointer hover:text-foreground transition-colors"}`}
                                 >
                                     Make Public
                                 </button>
@@ -228,7 +225,7 @@ export function BalanceScreen() {
                                 <button
                                     onClick={() => startConversion("toPrivate")}
                                     disabled={wallet.cusd.public === 0}
-                                    className="flex gap-1.5 px-1 text-xs font-medium text-muted-foreground hover:text-foreground rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed hover:cursor-pointer"
+                                    className={`flex gap-1.5 px-1 text-xs font-medium text-muted-foreground rounded-md disabled:opacity-40 disabled:cursor-not-allowed ${wallet.cusd.public === 0 ? "opacity-40 cursor-not-allowed" : "hover:cursor-pointer hover:text-foreground transition-colors"}`}
                                 >
                                     Make Private
                                 </button>
@@ -266,23 +263,24 @@ export function BalanceScreen() {
                         variant="outline"
                         className="flex-1 h-12 bg-transparent"
                         onClick={handleMint}
-                        disabled={isMinting}
+                        disabled={isMinting || isRefreshing}
                     >
                         {isMinting ? (
-                            <span className="flex items-center gap-2">
+                            <span className="flex items-center gap-2 hover:cursor-not-allowed">
                                 <span className="w-4 h-4 border-2 border-foreground/30 border-t-foreground rounded-full animate-spin" />
                                 Minting...
                             </span>
                         ) : (
-                            <>
+                            <span className="flex items-center gap-2 hover:cursor-pointer">
                                 <Coins className="w-4 h-4 mr-2" />
                                 Mint cUSD
-                            </>
+                            </span>
                         )}
                     </Button>
                     <Button
-                        className="flex-1 h-12 bg-primary hover:bg-primary/90 text-primary-foreground"
+                        className="flex-1 h-12 bg-primary hover:bg-primary/80 text-primary-foreground hover:cursor-pointer"
                         onClick={() => setCurrentScreen("send")}
+                        disabled={isMinting || isRefreshing}
                     >
                         <ArrowUpRight className="w-4 h-4 mr-2" />
                         Send cUSD

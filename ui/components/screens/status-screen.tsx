@@ -169,10 +169,12 @@ export function StatusScreen() {
                             onClick={() =>
                                 openTransactionInExplorer(transaction.txId!)
                             }
-                            className="flex items-center justify-center gap-1.5 mt-3 w-full text-sm text-muted-foreground hover:text-foreground transition-colors"
+                            className="flex items-center justify-center gap-1.5 mt-3 w-full text-sm text-muted-foreground hover:text-foreground hover:cursor-pointer transition-colors"
                         >
                             <ExternalLink className="w-4 h-4" />
-                            <span>View on Solscan</span>
+                            <span className="hover:cursor-pointer">
+                                View on Explorer
+                            </span>
                         </button>
                     </div>
                 )}
@@ -181,7 +183,7 @@ export function StatusScreen() {
             {/* Done Button */}
             <div className="p-4 border-t border-border">
                 <Button
-                    className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground"
+                    className="w-full h-12 bg-primary hover:bg-primary/80 text-primary-foreground hover:cursor-pointer"
                     onClick={resetTransaction}
                 >
                     Done

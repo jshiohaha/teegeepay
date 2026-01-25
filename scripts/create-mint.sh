@@ -2,7 +2,7 @@
 
 set -a; source "$(dirname "$0")/../.env"; set +a
 
-curl -X POST http://localhost:6767/api/tokens \
+curl -X POST $API_BASE_URL/api/tokens \
 -H "Content-Type: application/json" \
 -d "{
     \"name\": \"Cypher USD\",

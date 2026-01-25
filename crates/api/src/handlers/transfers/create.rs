@@ -84,8 +84,7 @@ pub async fn handler(
         .await?;
         if maybe_recipient_ata_account.is_none() {
             return Err(AppError::bad_request(anyhow::anyhow!(
-                "Recipient confidential token account for {:?} not found",
-                payload.recipient
+                "Recipient confidential token account not found",
             )));
         }
         solana::tokens::ata_has_confidential_transfer_extension(
@@ -97,8 +96,7 @@ pub async fn handler(
 
     if requires_recipient_confidential_extension {
         return Err(AppError::bad_request(anyhow::anyhow!(
-            "Recipient confidential token account for {:?} is not configured",
-            payload.recipient
+            "Recipient confidential token account is not configured"
         )));
     }
 

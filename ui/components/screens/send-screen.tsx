@@ -54,7 +54,7 @@ export function SendScreen() {
             <div className="flex items-center gap-3 p-4 border-b border-border">
                 <button
                     onClick={() => setCurrentScreen("balance")}
-                    className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-secondary transition-colors"
+                    className="flex items-center justify-center w-8 h-8 rounded-full hover:cursor-pointer"
                 >
                     <ChevronLeft className="w-5 h-5 text-foreground" />
                 </button>
@@ -105,7 +105,7 @@ export function SendScreen() {
                             </Label>
                             <button
                                 onClick={handleMaxAmount}
-                                className="text-xs font-medium text-accent hover:underline"
+                                className="text-xs font-medium text-muted-foreground hover:underline hover:cursor-pointer"
                             >
                                 Max: {wallet.cusd.total} cUSD
                             </button>
@@ -129,7 +129,9 @@ export function SendScreen() {
                             />
                             <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-muted-foreground">
                                 <Wallet className="w-4 h-4" />
-                                <span className="text-sm font-medium">cUSD</span>
+                                <span className="text-sm font-medium">
+                                    cUSD
+                                </span>
                             </div>
                         </div>
                         {errors.amount && (
@@ -155,7 +157,7 @@ export function SendScreen() {
 
                 {/* Continue Button */}
                 <Button
-                    className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground mt-6"
+                    className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground mt-6 hover:cursor-pointer"
                     onClick={validateAndContinue}
                 >
                     Review

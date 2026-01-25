@@ -94,7 +94,8 @@ export function ConvertScreen() {
             <div className="flex items-center gap-3 p-4 border-b border-border">
                 <button
                     onClick={() => setCurrentScreen("balance")}
-                    className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-secondary transition-colors"
+                    className={`flex items-center justify-center w-8 h-8 rounded-full ${isConverting ? "opacity-50 cursor-not-allowed" : "hover:cursor-pointer"}`}
+                    disabled={isConverting}
                 >
                     <ChevronLeft className="w-5 h-5 text-foreground" />
                 </button>
@@ -141,7 +142,7 @@ export function ConvertScreen() {
                         </Label>
                         <button
                             onClick={handleMaxAmount}
-                            className="text-xs font-medium text-accent hover:underline"
+                            className="text-xs font-medium text-muted-foreground hover:underline hover:cursor-pointer"
                         >
                             Max: {formatBalance(normalizedAvailableBalance)}{" "}
                             cUSD
@@ -195,15 +196,14 @@ export function ConvertScreen() {
                                 Converting...
                             </>
                         ) : (
-                            <>
+                            <span className="flex items-center hover:cursor-pointer">
                                 {isToPrivate ? "Make Private" : "Make Public"}
                                 <ArrowRight className="w-4 h-4 ml-2" />
-                            </>
+                            </span>
                         )}
                     </Button>
                     <Button
-                        variant="ghost"
-                        className="w-full h-10 text-muted-foreground hover:text-foreground"
+                        className={`w-full h-10 bg-transparent text-foreground hover:bg-transparent hover:cursor-pointer hover:border hover:border-[#ececec] hover:border-opacity-50 ${isConverting ? "opacity-50 cursor-not-allowed" : ""}`}
                         onClick={() => setCurrentScreen("balance")}
                         disabled={isConverting}
                     >
