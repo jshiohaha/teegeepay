@@ -51,93 +51,94 @@ export function SimpleAuthProvider({ children }: { children: ReactNode }) {
     const [error, setError] = useState<string | null>(null);
     const didInit = useRef(false);
 
+    console.log("[SIMPLE_AUTH] Component render - status:", status);
+
     useEffect(() => {
-        if (didInit.current) return;
+        console.log("[SIMPLE_AUTH] useEffect - didInit:", didInit.current);
+        
+        if (didInit.current) {
+            console.log("[SIMPLE_AUTH] Already initialized, skipping");
+            return;
+        }
         didInit.current = true;
 
-        const init = async () => {
-            console.log("[SIMPLE_AUTH] Starting init, DEV_MODE:", DEV_MODE);
+        const doInit = async () => {
+            console.log("[SIMPLE_AUTH] doInit starting");
+            console.log("[SIMPLE_AUTH] DEV_MODE:", DEV_MODE);
 
-            // DEV MODE - instant auth
+            // DEV MODE
             if (DEV_MODE) {
-                console.log("[SIMPLE_AUTH] Dev mode - setting authenticated");
+                console.log("[SIMPLE_AUTH] Dev mode - auto auth");
                 setToken(DEV_MOCK_TOKEN);
                 setUser(DEV_MOCK_USER);
                 setStatus("authenticated");
                 return;
             }
 
-            // Check for Telegram
-            const tgWebApp = window.Telegram?.WebApp;
-            const initData = tgWebApp?.initData;
-            console.log("[SIMPLE_AUTH] Telegram WebApp exists:", !!tgWebApp);
-            console.log("[SIMPLE_AUTH] initData exists:", !!initData, "length:", initData?.length);
-
-            if (!initData || initData.length === 0) {
-                console.log("[SIMPLE_AUTH] Not in Telegram, setting unauthenticated");
-                setStatus("unauthenticated");
-                return;
-            }
-
-            // Check localStorage for existing session
-            const storedToken = localStorage.getItem(TOKEN_STORAGE_KEY);
-            const storedUser = localStorage.getItem(USER_STORAGE_KEY);
-            const storedExpires = localStorage.getItem(EXPIRES_STORAGE_KEY);
-
-            if (storedToken && storedUser && storedExpires) {
-                const isExpired = new Date(storedExpires) <= new Date();
-                if (!isExpired) {
-                    console.log("[SIMPLE_AUTH] Found valid stored session");
-                    setToken(storedToken);
-                    setUser(JSON.parse(storedUser));
-                    setStatus("authenticated");
+            // Wait for Telegram SDK
+            console.log("[SIMPLE_AUTH] Checking Telegram SDK...");
+            let attempts = 0;
+            while (attempts < 10) {
+                const tg = window.Telegram?.WebApp;
+                const data = tg?.initData;
+                console.log("[SIMPLE_AUTH] Attempt", attempts, "- WebApp:", !!tg, "initData:", !!data, "len:", data?.length);
+                
+                if (data && data.length > 0) {
+                    console.log("[SIMPLE_AUTH] Got initData, proceeding with auth");
+                    tg?.ready();
+                    
+                    // Check stored session first
+                    const storedToken = localStorage.getItem(TOKEN_STORAGE_KEY);
+                    const storedExpires = localStorage.getItem(EXPIRES_STORAGE_KEY);
+                    if (storedToken && storedExpires && new Date(storedExpires) > new Date()) {
+                        console.log("[SIMPLE_AUTH] Using stored session");
+                        setToken(storedToken);
+                        setUser(JSON.parse(localStorage.getItem(USER_STORAGE_KEY) || "{}"));
+                        setStatus("authenticated");
+                        return;
+                    }
+                    
+                    // Auth with backend
+                    console.log("[SIMPLE_AUTH] Calling /api/auth/telegram");
+                    const res = await fetch("/api/auth/telegram", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ initData: data }),
+                    });
+                    
+                    console.log("[SIMPLE_AUTH] Response:", res.status);
+                    
+                    if (res.ok) {
+                        const authData = await res.json();
+                        console.log("[SIMPLE_AUTH] Auth success");
+                        localStorage.setItem(TOKEN_STORAGE_KEY, authData.token);
+                        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(authData.user));
+                        localStorage.setItem(EXPIRES_STORAGE_KEY, authData.expiresAt);
+                        setToken(authData.token);
+                        setUser(authData.user);
+                        setStatus("authenticated");
+                    } else {
+                        const text = await res.text();
+                        console.error("[SIMPLE_AUTH] Auth failed:", text);
+                        setError(`Auth failed: ${res.status}`);
+                        setStatus("error");
+                    }
                     return;
                 }
-                console.log("[SIMPLE_AUTH] Stored session expired, clearing");
-                localStorage.removeItem(TOKEN_STORAGE_KEY);
-                localStorage.removeItem(USER_STORAGE_KEY);
-                localStorage.removeItem(EXPIRES_STORAGE_KEY);
-            }
-
-            // Authenticate with backend
-            console.log("[SIMPLE_AUTH] Authenticating with backend...");
-            try {
-                tgWebApp?.ready();
                 
-                const res = await fetch("/api/auth/telegram", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ initData }),
-                });
-
-                console.log("[SIMPLE_AUTH] Auth response status:", res.status);
-
-                if (!res.ok) {
-                    const text = await res.text().catch(() => "");
-                    throw new Error(`Auth failed (${res.status}): ${text}`);
-                }
-
-                const data = await res.json();
-                console.log("[SIMPLE_AUTH] Auth success, user:", data.user?.telegramUserId);
-
-                // Store in localStorage
-                localStorage.setItem(TOKEN_STORAGE_KEY, data.token);
-                localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(data.user));
-                localStorage.setItem(EXPIRES_STORAGE_KEY, data.expiresAt);
-
-                // Update state
-                setToken(data.token);
-                setUser(data.user);
-                setStatus("authenticated");
-                console.log("[SIMPLE_AUTH] State updated to authenticated");
-            } catch (err) {
-                console.error("[SIMPLE_AUTH] Auth error:", err);
-                setError(err instanceof Error ? err.message : "Auth failed");
-                setStatus("error");
+                attempts++;
+                await new Promise(r => setTimeout(r, 100));
             }
+            
+            console.log("[SIMPLE_AUTH] No Telegram initData after 10 attempts");
+            setStatus("unauthenticated");
         };
 
-        init();
+        doInit().catch(err => {
+            console.error("[SIMPLE_AUTH] Fatal error:", err);
+            setError(String(err));
+            setStatus("error");
+        });
     }, []);
 
     const logout = () => {
@@ -148,8 +149,6 @@ export function SimpleAuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
         setStatus("unauthenticated");
     };
-
-    console.log("[SIMPLE_AUTH] Render - status:", status, "hasToken:", !!token);
 
     return (
         <AuthContext.Provider value={{ status, token, user, error, logout }}>
