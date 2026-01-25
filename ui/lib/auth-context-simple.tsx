@@ -110,12 +110,14 @@ export function SimpleAuthProvider({ children }: { children: ReactNode }) {
                     
                     if (res.ok) {
                         const authData = await res.json();
+                        // Response is wrapped: { data: { token, user, expiresAt } }
+                        const { token: newToken, user: newUser, expiresAt } = authData.data;
                         console.log("[SIMPLE_AUTH] Auth success");
-                        localStorage.setItem(TOKEN_STORAGE_KEY, authData.token);
-                        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(authData.user));
-                        localStorage.setItem(EXPIRES_STORAGE_KEY, authData.expiresAt);
-                        setToken(authData.token);
-                        setUser(authData.user);
+                        localStorage.setItem(TOKEN_STORAGE_KEY, newToken);
+                        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(newUser));
+                        localStorage.setItem(EXPIRES_STORAGE_KEY, expiresAt);
+                        setToken(newToken);
+                        setUser(newUser);
                         setStatus("authenticated");
                     } else {
                         const text = await res.text();
