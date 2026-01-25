@@ -11,11 +11,11 @@ use std::sync::Arc;
 // NOTE: none of these accounts have proper authentication or anything. For demo purposes only.
 pub fn create_router(state: Arc<AppState>) -> Router<()> {
     Router::new()
-        .route("/health", get(handlers::health::handler))
+        .route("/api/health", get(handlers::health::handler))
         .nest("/api/auth/telegram", telegram_routes(state.clone()))
-        .nest("/wallets", wallet_routes(state.clone()))
-        .nest("/transfers", transfer_routes(state.clone()))
-        .nest("/tokens", token_routes(state.clone()))
-        .route("/convert", post(crate::handlers::convert::handler))
+        .nest("/api/wallets", wallet_routes(state.clone()))
+        .nest("/api/transfers", transfer_routes(state.clone()))
+        .nest("/api/tokens", token_routes(state.clone()))
+        .route("/api/convert", post(crate::handlers::convert::handler))
         .with_state(state.clone())
 }

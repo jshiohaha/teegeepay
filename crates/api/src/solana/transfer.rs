@@ -150,7 +150,7 @@ pub async fn with_split_proofs(
     mint: &Pubkey,
     decimals: u8,
 ) -> Result<Vec<Signature>> {
-    println!("ensure_confidential_balance");
+    // TODO: add these transactions?
     ensure_confidential_balance(
         rpc_client.clone(),
         sender.clone(),
@@ -160,7 +160,6 @@ pub async fn with_split_proofs(
     )
     .await?;
 
-    println!("prepare_proof_transactions");
     let (transactions, ctx) = prepare_proof_transactions(
         rpc_client.clone(),
         sender.clone(),

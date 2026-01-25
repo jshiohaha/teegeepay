@@ -11,7 +11,7 @@ use anyhow::Result;
 use solana_client::{nonblocking::rpc_client::RpcClient, rpc_config::CommitmentConfig};
 use solana_keypair::Keypair;
 use solana_signer::Signer;
-use spl_token_2022::solana_zk_sdk::encryption::elgamal::{ElGamalKeypair, ElGamalSecretKey};
+use spl_token_2022::solana_zk_sdk::encryption::elgamal::ElGamalKeypair;
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
 use tracing::info;
@@ -19,6 +19,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 pub struct AppState {
     pub db: sqlx::PgPool,
+    pub dev_mode: bool,
     pub rpc_client: Arc<RpcClient>,
     pub elgamal_keypair: Arc<ElGamalKeypair>,
     pub global_authority: Arc<Keypair>,
@@ -93,6 +94,9 @@ async fn main() -> Result<()> {
     let jwt_secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");
 
     let state = Arc::new(AppState {
+        dev_mode: std::env::var("DEV_MODE")
+            .map(|v| v == "true")
+            .unwrap_or(false),
         db: pool,
         rpc_client: rpc_client.clone(),
         elgamal_keypair: Arc::new(elgamal_keypair),
@@ -106,7 +110,7 @@ async fn main() -> Result<()> {
     let port: u16 = std::env::var("PORT")
         .ok()
         .and_then(|value| value.parse().ok())
-        .unwrap_or(3000);
+        .unwrap_or(6767);
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
     tracing::info!("Server listening on {}", listener.local_addr()?);
 

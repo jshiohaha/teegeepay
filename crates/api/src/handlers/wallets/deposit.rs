@@ -3,7 +3,7 @@ use crate::auth::AuthUser;
 use crate::db;
 use crate::handlers::ApiResponse;
 use crate::handlers::AppError;
-use crate::solana;
+use crate::partial_sign::PartialSign;
 use crate::solana::balance::apply_pending_balance_with_keys;
 use crate::solana::transaction::build_transaction;
 use crate::solana::utils::confidential_keys_for_mint;
@@ -16,21 +16,12 @@ use solana_keypair::Signature;
 use solana_pubkey::Pubkey;
 use solana_signer::Signer;
 use std::sync::Arc;
-use tokio::task;
 use tracing::info;
-
-const WITHDRAW_TRANSACTION_LABELS: [&str; 5] = [
-    "Create Equality Proof",
-    "Create Range Proof",
-    "Withdraw",
-    "Close Equality Proof",
-    "Close Range Proof",
-];
 
 #[serde_as]
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct WithdrawTokensRequest {
+pub struct DepositTokensRequest {
     #[serde_as(as = "DisplayFromStr")]
     pub mint: Pubkey,
     #[serde_as(as = "DisplayFromStr")]
@@ -51,14 +42,14 @@ pub struct TransactionResult {
 #[serde_as]
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct WithdrawTokensResponse {
+pub struct DepositTokensResponse {
     pub transactions: Vec<TransactionResult>,
 }
 
 #[serde_as]
 #[derive(Debug, Default, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct WithdrawTokensPath {
+pub struct DepositTokensPath {
     #[serde_as(as = "DisplayFromStr")]
     pub address: Pubkey,
 }
@@ -66,9 +57,9 @@ pub struct WithdrawTokensPath {
 pub async fn handler(
     State(state): State<Arc<AppState>>,
     auth_user: AuthUser,
-    Path(path): Path<WithdrawTokensPath>,
-    Json(payload): Json<WithdrawTokensRequest>,
-) -> Result<ApiResponse<WithdrawTokensResponse>, AppError> {
+    Path(path): Path<DepositTokensPath>,
+    Json(payload): Json<DepositTokensRequest>,
+) -> Result<ApiResponse<DepositTokensResponse>, AppError> {
     let address = path.address;
     let Some(wallet) =
         db::get_user_wallet_by_pubkey(&state.db, &path.address, auth_user.telegram_user_id).await?
@@ -87,7 +78,55 @@ pub async fn handler(
     let owner_kp: Arc<dyn Signer + Send + Sync> = Arc::new(wallet.keypair);
     let confidential_keys = confidential_keys_for_mint(owner_kp.clone(), &payload.mint)?;
 
-    // TODO: do this conditionally?
+    let mut transactions: Vec<TransactionResult> = vec![];
+
+    if payload.amount == 0 {
+        return Err(AppError::bad_request(anyhow::anyhow!(
+            "Deposit amount must be greater than 0"
+        )));
+    }
+
+    let deposit_instructions = crate::solana::deposit::deposit_tokens(
+        state.rpc_client.clone(),
+        &owner_kp.pubkey(),
+        &payload.mint,
+        payload.decimals,
+        payload.amount,
+    )
+    .await?;
+
+    let mut tx = build_transaction(
+        state.rpc_client.clone(),
+        None,
+        deposit_instructions.instructions,
+        owner_kp.clone(),
+        vec![],
+    )
+    .await?;
+
+    tx.partial_sign(&owner_kp).map_err(|e| {
+        AppError::internal_server_error(anyhow::anyhow!(
+            "Failed to partial sign transaction: {:?}",
+            e
+        ))
+    })?;
+
+    let deposit_signature = state
+        .rpc_client
+        .clone()
+        .send_and_confirm_transaction(&tx)
+        .await
+        .with_context(|| anyhow::anyhow!("Error sending transaction"))
+        .map_err(AppError::from)?;
+    transactions.push(TransactionResult {
+        label: "Deposit".to_string(),
+        signature: deposit_signature,
+    });
+    info!(
+        "Transfer [Deposit Confidential Pending Balance] with signature={:?}",
+        deposit_signature
+    );
+
     let apply_instructions = apply_pending_balance_with_keys(
         state.rpc_client.clone(),
         &owner_kp.pubkey(),
@@ -112,36 +151,14 @@ pub async fn handler(
         .await
         .with_context(|| anyhow::anyhow!("Error sending transaction"))
         .map_err(AppError::from)?;
+    transactions.push(TransactionResult {
+        label: "Apply Pending Balance".to_string(),
+        signature: apply_signature,
+    });
     info!(
-        "Withdraw [Apply Pending Balance] with signature={:?}",
+        "Deposit [Apply Pending Balance] with signature={:?}",
         apply_signature
     );
 
-    // TODO: we can remove this after removing `ProgramRpcClientSendTransaction`
-    let withdraw_signatures: Vec<Signature> = task::spawn_blocking(move || {
-        let handle = tokio::runtime::Handle::current();
-        handle.block_on(solana::withdraw::withdraw_tokens(
-            state.rpc_client.clone(),
-            owner_kp.clone(),
-            payload.amount,
-            &payload.mint,
-            payload.decimals,
-        ))
-    })
-    .await
-    .with_context(|| anyhow::anyhow!("Failed to join withdraw task"))
-    .map_err(AppError::from)?
-    .with_context(|| anyhow::anyhow!("Failed to create withdraw"))
-    .map_err(AppError::from)?;
-
-    let transactions = WITHDRAW_TRANSACTION_LABELS
-        .iter()
-        .zip(withdraw_signatures.iter())
-        .map(|(label, signature)| TransactionResult {
-            label: label.to_string(),
-            signature: signature.clone(),
-        })
-        .collect();
-
-    Ok(ApiResponse::new(WithdrawTokensResponse { transactions }))
+    Ok(ApiResponse::new(DepositTokensResponse { transactions }))
 }

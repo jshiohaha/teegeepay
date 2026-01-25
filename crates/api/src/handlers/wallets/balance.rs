@@ -12,6 +12,7 @@ use axum::extract::{Query, State};
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as};
 use solana_pubkey::Pubkey;
+use solana_signer::Signer;
 use std::sync::Arc;
 
 #[serde_as]
@@ -115,4 +116,44 @@ pub async fn handler(
             available: available_balance,
         },
     }))
+}
+
+#[serde_as]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SolanaBalanceResponse {
+    #[serde_as(as = "DisplayFromStr")]
+    pub lamports: u64,
+}
+
+// GET /wallets/{address}/balance/solana
+pub async fn solana(
+    State(state): State<Arc<AppState>>,
+    Path(path): Path<BalancePath>,
+    auth_user: AuthUser,
+) -> Result<ApiResponse<SolanaBalanceResponse>, AppError> {
+    let Some(wallet) =
+        db::get_user_wallet_by_pubkey(&state.db, &path.address, auth_user.telegram_user_id).await?
+    else {
+        return Err(AppError::not_found(anyhow::anyhow!(
+            "Wallet not found or not authorized"
+        )));
+    };
+
+    let pubkey = wallet.keypair.pubkey();
+    if pubkey != path.address {
+        return Err(AppError::bad_request(anyhow::anyhow!(
+            "Wallet address does not match provided address"
+        )));
+    }
+
+    let lamports = state
+        .rpc_client
+        .get_balance(&path.address)
+        .await
+        .map_err(|e| {
+            AppError::internal_server_error(anyhow::anyhow!("Failed to get solana balance: {}", e))
+        })?;
+
+    Ok(ApiResponse::new(SolanaBalanceResponse { lamports }))
 }

@@ -1,17 +1,30 @@
 use crate::AppState;
 use crate::auth::AuthUser;
 use crate::db;
+use crate::handlers::wallets::deposit::TransactionResult;
 use crate::handlers::{ApiResponse, AppError};
 use crate::solana;
 use crate::solana::transfer::with_split_proofs;
 use axum::{Json, extract::State};
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as};
-use solana_keypair::Signature;
 use solana_pubkey::Pubkey;
 use spl_token_2022::{extension::StateWithExtensionsOwned, state::Mint};
 use std::sync::Arc;
 use tokio::task;
+
+const TRANSFER_TRANSACTION_LABELS: [&str; 5] = [
+    // create proof accounts: range, equality, ciphertext validity
+    "Create Proof Accounts",
+    // verify proof accounts: range
+    "Verify Proof Accounts: Range",
+    // verify proof accounts: equality, ciphertext validity
+    "Verify Proof Accounts: Equality, Ciphertext",
+    // transfer
+    "Transfer",
+    // close proof accounts: equality, ciphertext, range validity
+    "Close Proof Accounts",
+];
 
 #[serde_as]
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
@@ -31,8 +44,7 @@ pub struct CreateTransferRequest {
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransferResponse {
-    #[serde_as(as = "Vec<DisplayFromStr>")]
-    pub signatures: Vec<Signature>,
+    pub transactions: Vec<TransactionResult>,
 }
 
 pub async fn handler(
@@ -132,7 +144,14 @@ pub async fn handler(
         AppError::internal_server_error(anyhow::anyhow!("Failed to create transfer: {:?}", e))
     })?;
 
-    Ok(ApiResponse::new(TransferResponse {
-        signatures: transfer_signatures,
-    }))
+    let transactions = TRANSFER_TRANSACTION_LABELS
+        .iter()
+        .zip(transfer_signatures.iter())
+        .map(|(label, signature)| TransactionResult {
+            label: label.to_string(),
+            signature: signature.clone(),
+        })
+        .collect();
+
+    Ok(ApiResponse::new(TransferResponse { transactions }))
 }

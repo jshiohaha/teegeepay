@@ -6,6 +6,7 @@ use crate::{
     handlers::{ApiResponse, AppError},
     solana::transaction::build_transaction,
 };
+use axum::extract::Path;
 use axum::{Json, extract::State};
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as};
@@ -22,12 +23,17 @@ pub struct MintTokenRequest {
     /// Mint address
     #[serde_as(as = "DisplayFromStr")]
     pub mint: Pubkey,
-    /// Recipient address
-    #[serde_as(as = "DisplayFromStr")]
-    pub recipient: Pubkey,
     /// Amount to mint
     #[serde_as(as = "DisplayFromStr")]
-    pub amount: u64,
+    pub amount: f64,
+}
+
+#[serde_as]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MintTokenPath {
+    #[serde_as(as = "DisplayFromStr")]
+    pub address: Pubkey,
 }
 
 #[serde_as]
@@ -46,27 +52,29 @@ pub struct MintTokenResponse {
 // handler is at POST /tokens/:address/mint
 pub async fn handler(
     State(state): State<Arc<AppState>>,
+    Path(path): Path<MintTokenPath>,
     Json(payload): Json<MintTokenRequest>,
 ) -> Result<ApiResponse<MintTokenResponse>, AppError> {
+    let adjusted_amount = (payload.amount * 10_f64.powf(9.0)) as u64;
     info!(
         "Minting {:?} of mint={:?} to recipient={:?}",
-        payload.amount, payload.mint, payload.recipient
+        adjusted_amount, payload.mint, path.address
     );
 
-    let global_authority = state.global_authority.clone();
-    let global_authority_pubkey = global_authority.pubkey();
-
-    let Some(recipient_wallet) = db::get_wallet_by_pubkey(&state.db, &payload.recipient).await?
-    else {
+    let Some(recipient_wallet) = db::get_wallet_by_pubkey(&state.db, &path.address).await? else {
         return Err(AppError::not_found(anyhow::anyhow!(
             "Recipient wallet not found"
         )));
     };
-    if recipient_wallet.pubkey != payload.recipient {
+
+    if recipient_wallet.pubkey != path.address {
         return Err(AppError::internal_server_error(anyhow::anyhow!(
             "Recipient wallet keypair does not match provided pubkey"
         )));
     }
+
+    let global_authority = state.global_authority.clone();
+    let global_authority_pubkey = global_authority.pubkey();
 
     let mut instructions = Vec::new();
     let mut additional_signers = Vec::new();
@@ -86,16 +94,6 @@ pub async fn handler(
     )
     .await?;
 
-    println!(
-        "setup_token_account_instructions ix count: {:?}",
-        setup_token_account_instructions.instructions.len()
-    );
-
-    println!(
-        "setup_token_account_instructions signer count: {:?}",
-        setup_token_account_instructions.additional_signers.len()
-    );
-
     if !setup_token_account_instructions.instructions.is_empty() {
         instructions.extend(setup_token_account_instructions.instructions);
 
@@ -109,21 +107,11 @@ pub async fn handler(
         state.rpc_client.clone(),
         &global_authority.pubkey(),
         global_authority.clone(),
-        &payload.recipient,
+        &path.address,
         &payload.mint,
-        payload.amount,
+        adjusted_amount,
     )
     .await?;
-
-    println!(
-        "mint_instructions ix count: {:?}",
-        mint_instructions.instructions.len()
-    );
-
-    println!(
-        "mint_instructions signer count: {:?}",
-        mint_instructions.additional_signers.len()
-    );
 
     if !mint_instructions.instructions.is_empty() {
         instructions.extend(mint_instructions.instructions);

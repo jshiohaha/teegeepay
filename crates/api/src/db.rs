@@ -68,6 +68,7 @@ pub struct TelegramUserRow {
     pub updated_at: DateTime<Utc>,
 }
 
+#[allow(dead_code)]
 pub async fn get_user_by_user_id(pool: &PgPool, user_id: &str) -> Result<Option<TelegramUserRow>> {
     let user = sqlx::query_as::<_, TelegramUserRow>(
         r#"
@@ -141,14 +142,22 @@ pub async fn create_wallet_for_telegram_user(
 
     let wallet_id = sqlx::query_scalar::<_, i64>(
         r#"
+        WITH upsert_user AS (
+            INSERT INTO users (user_id, telegram_user_id, created_at, updated_at)
+            VALUES ($1, $2, NOW(), NOW())
+            ON CONFLICT (telegram_user_id) DO UPDATE SET
+                user_id = EXCLUDED.user_id,
+                updated_at = NOW()
+            RETURNING id
+        )
         INSERT INTO wallets (user_id, pubkey, keypair, created_at, updated_at)
-        SELECT u.id, $2, $3, NOW(), NOW()
-        FROM users u
-        WHERE u.user_id = $1
+        SELECT upsert_user.id, $3, $4, NOW(), NOW()
+        FROM upsert_user
         RETURNING id
         "#,
     )
     .bind(&user_id_str)
+    .bind(telegram_user_id)
     .bind(pubkey.to_string())
     .bind(keypair.to_base58_string())
     .fetch_one(pool)
@@ -272,6 +281,7 @@ pub async fn get_user_wallet_by_pubkey(
         .transpose()
 }
 
+#[allow(dead_code)]
 pub async fn wallet_exists(pool: &PgPool, pubkey: &Pubkey) -> Result<bool> {
     let result = sqlx::query_scalar::<_, bool>(
         r#"
@@ -292,6 +302,32 @@ pub async fn get_all_wallets(pool: &PgPool) -> Result<Vec<Pubkey>> {
         FROM wallets
         "#,
     )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(wallets
+        .into_iter()
+        .map(|w| {
+            Pubkey::from_str(&w.0).map_err(|e| anyhow::anyhow!("Failed to parse pubkey: {}", e))
+        })
+        .collect::<Result<Vec<_>>>()?)
+}
+
+pub async fn get_wallets_for_telegram_user(
+    pool: &PgPool,
+    telegram_user_id: i64,
+) -> Result<Vec<Pubkey>> {
+    let user_id_str = format!("tg:{}", telegram_user_id);
+
+    let wallets = sqlx::query_as::<_, (String,)>(
+        r#"
+        SELECT w.pubkey
+        FROM wallets w
+        JOIN users u ON w.user_id = u.id
+        WHERE u.user_id = $1
+        "#,
+    )
+    .bind(&user_id_str)
     .fetch_all(pool)
     .await?;
 

@@ -20,7 +20,7 @@ CREATE INDEX idx_users_telegram_user_id ON users(telegram_user_id);
 
 CREATE TABLE IF NOT EXISTS wallets (
     id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL REFERENCES users(id),
+    user_id BIGINT REFERENCES users(id),
     pubkey pubkey NOT NULL UNIQUE,
     -- WARN: this was for hackathon prototype only. DO NOT DO THIS IN PRODUCTION.
     keypair keypair NOT NULL UNIQUE,

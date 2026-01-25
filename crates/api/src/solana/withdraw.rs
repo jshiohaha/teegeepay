@@ -14,7 +14,7 @@ use spl_token_client::{
 };
 use spl_token_confidential_transfer_proof_generation::withdraw::WithdrawProofData;
 use std::sync::Arc;
-use tracing::warn;
+use tracing::{info, warn};
 
 use crate::solana::{signature_signer::ConfidentialKeys, utils::confidential_keys_for_mint};
 
@@ -97,7 +97,7 @@ pub async fn withdraw_tokens_with_keys(
 
     let mut signatures = vec![];
 
-    println!("create equality proof");
+    info!("create equality proof");
     let equality_response = token
         .confidential_transfer_create_context_state_account(
             &equality_proof_context_state_pubkey,
@@ -107,12 +107,11 @@ pub async fn withdraw_tokens_with_keys(
             create_equality_proof_signer,
         )
         .await?;
-
     if let Some(s) = get_maybe_signature(equality_response, &withdrawer.pubkey())? {
         signatures.push(s.clone());
     }
 
-    println!("create range proof");
+    info!("create range proof");
     let range_response = token
         .confidential_transfer_create_context_state_account(
             &range_proof_context_state_pubkey,
@@ -126,7 +125,7 @@ pub async fn withdraw_tokens_with_keys(
         signatures.push(s.clone());
     }
 
-    println!("creating withdraw");
+    info!("creating withdraw");
     let withdraw_response = token
         .confidential_transfer_withdraw(
             &recipient_associated_token_address,
@@ -147,7 +146,7 @@ pub async fn withdraw_tokens_with_keys(
 
     let close_context_state_signer = &[&context_state_authority];
 
-    println!("closing equality proof");
+    info!("closing equality proof");
     let close_equality_response = token
         .confidential_transfer_close_context_state_account(
             &equality_proof_context_state_pubkey,
@@ -160,7 +159,7 @@ pub async fn withdraw_tokens_with_keys(
         signatures.push(s.clone());
     }
 
-    println!("closing range proof");
+    info!("closing range proof");
     let close_range_response = token
         .confidential_transfer_close_context_state_account(
             &range_proof_context_state_pubkey,

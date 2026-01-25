@@ -1,4 +1,5 @@
 use crate::AppState;
+use crate::auth::AuthUser;
 use crate::db;
 use crate::handlers::ApiResponse;
 use crate::handlers::AppError;
@@ -18,10 +19,13 @@ pub struct ListWalletsResponse {
 
 pub async fn handler(
     State(state): State<Arc<AppState>>,
+    auth_user: AuthUser,
 ) -> Result<ApiResponse<ListWalletsResponse>, AppError> {
-    let pubkeys = db::get_all_wallets(&state.db).await.map_err(|e| {
-        AppError::internal_server_error(anyhow::anyhow!("Failed to get all wallets: {}", e))
-    })?;
+    let pubkeys = db::get_wallets_for_telegram_user(&state.db, auth_user.telegram_user_id)
+        .await
+        .map_err(|e| {
+            AppError::internal_server_error(anyhow::anyhow!("Failed to get wallets: {}", e))
+        })?;
 
     Ok(ApiResponse::new(ListWalletsResponse { pubkeys }))
 }

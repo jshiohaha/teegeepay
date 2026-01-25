@@ -1,6 +1,6 @@
+use crate::AppState;
 use crate::db::upsert_telegram_user;
 use crate::handlers::{ApiResponse, AppError};
-use crate::AppState;
 use axum::{Json, extract::State};
 use chrono::{Duration, Utc};
 use hmac::{Hmac, Mac};
@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tracing::debug;
 
 #[derive(Debug, Deserialize)]
 pub struct TelegramAuthRequest {
@@ -158,7 +159,18 @@ pub async fn handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<TelegramAuthRequest>,
 ) -> Result<ApiResponse<TelegramAuthResponse>, AppError> {
-    let user = verify_init_data(&payload.init_data, &state.telegram_bot_token)?;
+    let user = if state.dev_mode {
+        debug!("Dev mode enabled");
+        TelegramUser {
+            telegram_user_id: 123,
+            username: Some("dev-user".to_string()),
+            first_name: Some("Dev".to_string()),
+            last_name: Some("User".to_string()),
+            language_code: Some("en".to_string()),
+        }
+    } else {
+        verify_init_data(&payload.init_data, &state.telegram_bot_token)?
+    };
 
     upsert_telegram_user(
         &state.db,

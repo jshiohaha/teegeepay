@@ -35,11 +35,13 @@ services:
       context: .
       dockerfile: crates/api/Dockerfile
     ports:
-      - "3000:3000"
+      - "6767:6767"
     environment:
+      PORT: 6767
       DATABASE_URL: postgres://user:password@postgres:5432/solana_api
       RUST_LOG: info
       RPC_URL: http://host.docker.internal:8899
+      DEV_MODE: ${DEV_MODE:?false}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?missing TELEGRAM_BOT_TOKEN}
       JWT_SECRET: ${JWT_SECRET:?missing JWT_SECRET}
       AUTHORITY_KP: ${AUTHORITY_KP:?missing AUTHORITY_KP}

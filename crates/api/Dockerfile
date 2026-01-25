@@ -54,6 +54,6 @@ RUN chmod +x /app/solana-api
 ENV RUST_LOG=info \
     DATABASE_URL=${DATABASE_URL}
 
-EXPOSE 3000
+EXPOSE 6767
 
 CMD ["/app/solana-api"]

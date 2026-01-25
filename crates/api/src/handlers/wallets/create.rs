@@ -4,7 +4,8 @@ use crate::db;
 use crate::handlers::ApiResponse;
 use crate::handlers::AppError;
 use crate::solana::airdrop::request_and_confirm;
-use axum::{Json, extract::State};
+use axum::body::Bytes;
+use axum::extract::State;
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as};
 use solana_keypair::Keypair;
@@ -32,29 +33,35 @@ pub struct CreateWalletResponse {
 pub async fn handler(
     State(state): State<Arc<AppState>>,
     auth_user: AuthUser,
-    Json(payload): Json<CreateWalletRequest>,
+    payload: Bytes,
 ) -> Result<ApiResponse<CreateWalletResponse>, AppError> {
-    let keypair = if let Some(bytes) = payload.bytes {
-        Keypair::try_from(bytes.as_slice())
+    let payload = if payload.is_empty() {
+        None
     } else {
-        Ok(Keypair::new())
-    }
-    .map_err(|e| {
-        AppError::internal_server_error(anyhow::anyhow!("failed to create keypair: {}", e))
-    })?;
+        Some(
+            serde_json::from_slice::<CreateWalletRequest>(&payload)
+                .map_err(|e| AppError::bad_request(anyhow::anyhow!("Invalid JSON body: {}", e)))?,
+        )
+    };
+
+    let keypair = if let Some(payload) = payload
+        && payload.bytes.is_some()
+    {
+        let bytes = payload.bytes.unwrap_or_default();
+        Keypair::try_from(bytes.as_slice()).map_err(|e| {
+            AppError::internal_server_error(anyhow::anyhow!("failed to create keypair: {}", e))
+        })?
+    } else {
+        Keypair::new()
+    };
 
     let pubkey = keypair.pubkey();
 
-    db::create_wallet_for_telegram_user(
-        &state.db,
-        auth_user.telegram_user_id,
-        &pubkey,
-        &keypair,
-    )
-    .await
-    .map_err(|e| {
-        AppError::internal_server_error(anyhow::anyhow!("Failed to create wallet: {}", e))
-    })?;
+    db::create_wallet_for_telegram_user(&state.db, auth_user.telegram_user_id, &pubkey, &keypair)
+        .await
+        .map_err(|e| {
+            AppError::internal_server_error(anyhow::anyhow!("Failed to create wallet: {}", e))
+        })?;
 
     let signature = request_and_confirm(state.rpc_client.clone(), &pubkey, 1 * 10_u64.pow(9))
         .await
