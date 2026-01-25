@@ -175,36 +175,30 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
     const { token, status } = useSimpleAuth();
 
-    // Simple authenticated fetch
+    // Simple authenticated fetch - always check localStorage as fallback
     const authFetch = async <T,>(path: string, init?: RequestInit): Promise<T> => {
-        console.log("[WALLET] authFetch:", path, "token:", !!token);
-        if (!token) {
-            console.error("[WALLET] authFetch: No token!");
+        // Get token from context or localStorage (context might be stale)
+        const currentToken = token ?? localStorage.getItem("tg_auth_token");
+        
+        if (!currentToken) {
             throw new Error("Not authenticated");
         }
-        try {
-            console.log("[WALLET] authFetch: Making request to", path);
-            const res = await fetch(path, {
-                ...init,
-                headers: {
-                    ...init?.headers,
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`,
-                },
-            });
-            console.log("[WALLET] authFetch: Response status", res.status);
-            if (!res.ok) {
-                const text = await res.text().catch(() => "");
-                console.error("[WALLET] authFetch: Error response", res.status, text);
-                throw new Error(`API error (${res.status}): ${text}`);
-            }
-            const data = await res.json();
-            console.log("[WALLET] authFetch: Success", path);
-            return data;
-        } catch (err) {
-            console.error("[WALLET] authFetch: Exception", err);
-            throw err;
+        
+        const res = await fetch(path, {
+            ...init,
+            headers: {
+                ...init?.headers,
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${currentToken}`,
+            },
+        });
+        
+        if (!res.ok) {
+            const text = await res.text().catch(() => "");
+            throw new Error(`API error (${res.status}): ${text}`);
         }
+        
+        return res.json();
     };
 
     const fetchBalances = async (
