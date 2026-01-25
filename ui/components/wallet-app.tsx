@@ -1,6 +1,7 @@
 "use client";
 
 import { BalanceScreen } from "@/components/screens/balance-screen";
+import { ConvertScreen } from "@/components/screens/convert-screen";
 import { OnboardingScreen } from "@/components/screens/onboarding-screen";
 import { ReviewScreen } from "@/components/screens/review-screen";
 import { SendScreen } from "@/components/screens/send-screen";
@@ -11,7 +12,7 @@ import { AuthProvider } from "@/lib/auth-context";
 import { WalletProvider, useWallet } from "@/lib/wallet-context";
 
 function WalletScreens() {
-    const { currentScreen } = useWallet();
+    const { currentScreen, isLoading } = useWallet();
 
     const screens = {
         onboarding: <OnboardingScreen />,
@@ -19,6 +20,7 @@ function WalletScreens() {
         send: <SendScreen />,
         review: <ReviewScreen />,
         status: <StatusScreen />,
+        convert: <ConvertScreen />,
     };
 
     return (
@@ -26,7 +28,13 @@ function WalletScreens() {
             <div className="absolute top-3 right-3 z-10">
                 <ThemeToggle />
             </div>
-            {screens[currentScreen]}
+            {isLoading ? (
+                <div className="flex-1 flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+                </div>
+            ) : (
+                screens[currentScreen]
+            )}
         </div>
     );
 }
