@@ -62,6 +62,12 @@ export function SimpleAuthProvider({ children }: { children: ReactNode }) {
         didInit.current = true;
 
         const doInit = async () => {
+            // Clear any stale auth data on fresh load to ensure we always check for reserved wallets
+            localStorage.removeItem(TOKEN_STORAGE_KEY);
+            localStorage.removeItem(USER_STORAGE_KEY);
+            localStorage.removeItem(EXPIRES_STORAGE_KEY);
+            localStorage.removeItem(HAS_RESERVED_WALLET_KEY);
+
             // DEV MODE - still call backend to check for reserved wallet
             if (DEV_MODE) {
                 try {
