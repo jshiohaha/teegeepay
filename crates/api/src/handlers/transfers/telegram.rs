@@ -46,12 +46,19 @@ pub struct TelegramTransferRequest {
 #[serde_as]
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct Recipient {
+    #[serde_as(as = "DisplayFromStr")]
+    pub pubkey: Pubkey,
+    pub username: String,
+    pub new_wallet: bool,
+}
+
+#[serde_as]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TelegramTransferResponse {
     pub transactions: Vec<TransactionResult>,
-    #[serde_as(as = "DisplayFromStr")]
-    pub recipient_pubkey: Pubkey,
-    pub recipient_username: String,
-    pub was_new_wallet: bool,
+    pub recipient: Recipient,
 }
 
 struct RecipientInfo {
@@ -97,9 +104,11 @@ pub async fn handler(
 
     Ok(ApiResponse::new(TelegramTransferResponse {
         transactions,
-        recipient_pubkey: transfer_context.recipient_pubkey,
-        recipient_username: payload.telegram_username,
-        was_new_wallet: recipient_info.was_new_wallet,
+        recipient: Recipient {
+            pubkey: transfer_context.recipient_pubkey,
+            username: payload.telegram_username,
+            new_wallet: recipient_info.was_new_wallet,
+        },
     }))
 }
 

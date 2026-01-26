@@ -26,7 +26,9 @@ export function OnboardingScreen() {
             setDebugMsg("Success!");
             setIsCreating(false);
         } catch (error) {
-            setDebugMsg(`Error: ${error instanceof Error ? error.message : String(error)}`);
+            setDebugMsg(
+                `Error: ${error instanceof Error ? error.message : String(error)}`,
+            );
             setIsCreating(false);
         }
     };
@@ -58,12 +60,12 @@ export function OnboardingScreen() {
                     </div>
 
                     <h1 className="text-2xl font-bold text-foreground mb-2 text-balance">
-                        {isClaimMode ? "You've Got Crypto!" : "For Your Eyes Only"}
+                        {isClaimMode
+                            ? "You've Got Crypto!"
+                            : "For Your Eyes Only"}
                     </h1>
                     <p className="text-muted-foreground text-lg leading-relaxed max-w-[260px]">
-                        {isClaimMode 
-                            ? "Someone sent you funds. Claim your wallet to access them."
-                            : "Send and receive confidentially"}
+                        Send and receive confidentially
                     </p>
                 </div>
 
@@ -101,16 +103,15 @@ export function OnboardingScreen() {
                 {/* CTA */}
                 <Button
                     className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground"
-                    onClick={() => {
-                        console.log("[ONBOARDING] Button onClick fired");
-                        handleCreate();
-                    }}
+                    onClick={handleCreate}
                     disabled={isCreating}
                 >
                     {isCreating ? (
                         <span className="flex items-center gap-2">
                             <span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                            {isClaimMode ? "Claiming Wallet..." : "Creating Wallet..."}
+                            {isClaimMode
+                                ? "Claiming Wallet..."
+                                : "Creating Wallet..."}
                         </span>
                     ) : (
                         <span className="text-md hover:cursor-pointer">
@@ -122,7 +123,7 @@ export function OnboardingScreen() {
                 <p className="text-xs text-muted-foreground text-center mt-4">
                     By continuing, you agree to our Terms of Service
                 </p>
-                
+
                 {/* Debug message - remove after fixing */}
                 <p className="text-xs text-center mt-2 p-2 bg-yellow-100 text-yellow-800 rounded">
                     Debug: {debugMsg}

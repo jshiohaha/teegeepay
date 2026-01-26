@@ -171,8 +171,8 @@ pub async fn handler(
     let user = if state.dev_mode {
         info!("dev mode enabled, using mock user");
         TelegramUser {
-            telegram_user_id: 123,
-            username: Some("dev-user".to_string()),
+            telegram_user_id: 123456789,
+            username: Some("dev_user".to_string()),
             first_name: Some("Dev".to_string()),
             last_name: Some("User".to_string()),
             language_code: Some("en".to_string()),

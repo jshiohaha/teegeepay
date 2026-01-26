@@ -133,9 +133,8 @@ export function BalanceScreen() {
                         <Tooltip>
                             <TooltipTrigger asChild>
                                 <Button
-                                    variant="outline"
                                     size="icon"
-                                    className="h-[46px] w-[46px] shrink-0 hover:cursor-pointer"
+                                    className="h-[46px] w-[46px] shrink-0 bg-transparent text-foreground hover:bg-transparent hover:cursor-pointer border border-[#ececec] border-opacity-50"
                                     onClick={() =>
                                         openAddressInExplorer(wallet.address)
                                     }
@@ -235,7 +234,7 @@ export function BalanceScreen() {
                 </Card>
 
                 {/* SOL Balance - Secondary */}
-                <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 border border-border">
+                <div className="flex items-center justify-between p-3 rounded-lg bg-transparent border border-border">
                     <div className="flex items-center gap-2">
                         <img
                             className="w-6 h-6 rounded-full object-cover"
@@ -260,8 +259,7 @@ export function BalanceScreen() {
                 {/* Actions */}
                 <div className="flex gap-3">
                     <Button
-                        variant="outline"
-                        className="flex-1 h-12 bg-transparent"
+                        className={`flex-1 h-12 bg-transparent text-foreground hover:bg-transparent hover:cursor-pointer border border-[#ececec] border-opacity-50 ${isMinting || isRefreshing ? "opacity-50 cursor-not-allowed" : ""}`}
                         onClick={handleMint}
                         disabled={isMinting || isRefreshing}
                     >
@@ -271,7 +269,7 @@ export function BalanceScreen() {
                                 Minting...
                             </span>
                         ) : (
-                            <span className="flex items-center gap-2 hover:cursor-pointer">
+                            <span className="flex items-center gap-2">
                                 <Coins className="w-4 h-4 mr-2" />
                                 Mint cUSD
                             </span>

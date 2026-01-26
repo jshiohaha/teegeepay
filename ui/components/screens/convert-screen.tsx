@@ -91,10 +91,12 @@ export function ConvertScreen() {
     return (
         <div className="flex flex-col h-full">
             {/* Header */}
-            <div className="flex items-center gap-3 p-4 border-b border-border">
+            <div
+                className={`flex items-center gap-3 p-4 border-b border-border ${isConverting ? "opacity-50 cursor-not-allowed" : "hover:cursor-pointer"}`}
+            >
                 <button
                     onClick={() => setCurrentScreen("balance")}
-                    className={`flex items-center justify-center w-8 h-8 rounded-full ${isConverting ? "opacity-50 cursor-not-allowed" : "hover:cursor-pointer"}`}
+                    className="flex items-center justify-center w-8 h-8 rounded-full"
                     disabled={isConverting}
                 >
                     <ChevronLeft className="w-5 h-5 text-foreground" />
@@ -186,7 +188,7 @@ export function ConvertScreen() {
                 {/* Actions */}
                 <div className="space-y-3 mt-6">
                     <Button
-                        className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground"
+                        className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground hover:cursor-pointer"
                         onClick={validateAndConvert}
                         disabled={isConverting}
                     >
@@ -196,7 +198,7 @@ export function ConvertScreen() {
                                 Converting...
                             </>
                         ) : (
-                            <span className="flex items-center hover:cursor-pointer">
+                            <span className="flex items-center">
                                 {isToPrivate ? "Make Private" : "Make Public"}
                                 <ArrowRight className="w-4 h-4 ml-2" />
                             </span>

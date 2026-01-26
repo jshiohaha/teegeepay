@@ -48,7 +48,7 @@ export function ReviewScreen() {
         try {
             const adjustedAmount =
                 Number.parseFloat(transaction.amount) * 10 ** 9;
-            
+
             let signatures;
             if (transaction.transferType === "telegram") {
                 const username = transaction.recipient.replace(/^@/, "");
@@ -105,7 +105,7 @@ export function ReviewScreen() {
             <div className="flex items-center gap-3 p-4 border-b border-border">
                 <button
                     onClick={() => setCurrentScreen("send")}
-                    className={`flex items-center justify-center w-8 h-8 rounded-full ${isConfirming ? "opacity-50 cursor-not-allowed" : ""}`}
+                    className={`flex items-center justify-center w-8 h-8 rounded-full ${isConfirming ? "opacity-50 cursor-not-allowed" : "hover:cursor-pointer"}`}
                     disabled={isConfirming}
                 >
                     <ChevronLeft className="w-5 h-5 text-foreground" />
@@ -128,20 +128,6 @@ export function ReviewScreen() {
 
             {/* Content */}
             <div className="flex-1 px-4 flex flex-col">
-                {/* <div className="text-center py-2">
-                    <p className="text-sm text-muted-foreground mb-2">
-                        You are sending
-                    </p>
-                    <div className="flex items-baseline justify-center gap-2">
-                        <span className="text-4xl font-bold tracking-tight text-foreground">
-                            {transaction.amount}
-                        </span>
-                        <span className="text-lg font-medium text-muted-foreground">
-                            cUSD
-                        </span>
-                    </div>
-                </div> */}
-
                 {/* Transaction Details */}
                 <Card className="bg-card border-border shadow-sm py-0">
                     <CardContent className="p-0 divide-y divide-border">
@@ -172,7 +158,9 @@ export function ReviewScreen() {
                                     <>
                                         <button className="flex-1 flex items-center justify-between rounded-lg">
                                             <span className="font-mono text-sm text-foreground">
-                                                {truncateString(transaction.recipient)}
+                                                {truncateString(
+                                                    transaction.recipient,
+                                                )}
                                             </span>
                                         </button>
                                         <Tooltip>
@@ -245,7 +233,7 @@ export function ReviewScreen() {
                         </span>
                     </Button>
                     <Button
-                        className={`w-full h-10 bg-transparent text-foreground hover:bg-transparent hover:cursor-pointer hover:border hover:border-[#ececec] hover:border-opacity-50 ${isConfirming ? "opacity-50 cursor-not-allowed" : ""}`}
+                        className={`w-full h-10 bg-transparent text-foreground hover:bg-transparent hover:cursor-pointer border border-[#ececec] border-opacity-50 ${isConfirming ? "opacity-50 cursor-not-allowed" : ""}`}
                         onClick={() => setCurrentScreen("send")}
                         disabled={isConfirming}
                     >

@@ -7,13 +7,13 @@ import type { ReactNode } from "react";
 export function SimpleAuthGate({ children }: { children: ReactNode }) {
     const { status, error } = useSimpleAuth();
 
-    console.log("[SIMPLE_GATE] Render - status:", status);
-
     if (status === "loading") {
         return (
             <div className="w-full max-w-sm mx-auto h-[600px] bg-card rounded-2xl shadow-lg border border-border overflow-hidden flex flex-col items-center justify-center gap-4">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">Authenticating...</p>
+                <p className="text-sm text-muted-foreground">
+                    Authenticating...
+                </p>
             </div>
         );
     }
@@ -31,7 +31,9 @@ export function SimpleAuthGate({ children }: { children: ReactNode }) {
         return (
             <div className="w-full max-w-sm mx-auto h-[600px] bg-card rounded-2xl shadow-lg border border-border overflow-hidden flex flex-col items-center justify-center gap-4 p-6">
                 <h2 className="text-lg font-semibold">Telegram Required</h2>
-                <p className="text-sm text-muted-foreground">Open this app in Telegram</p>
+                <p className="text-sm text-muted-foreground">
+                    Open this app in Telegram
+                </p>
             </div>
         );
     }

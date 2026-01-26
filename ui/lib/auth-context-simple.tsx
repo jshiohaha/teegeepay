@@ -55,74 +55,108 @@ export function SimpleAuthProvider({ children }: { children: ReactNode }) {
     const [hasReservedWallet, setHasReservedWallet] = useState(false);
     const didInit = useRef(false);
 
-    console.log("[SIMPLE_AUTH] Component render - status:", status);
-
     useEffect(() => {
-        console.log("[SIMPLE_AUTH] useEffect - didInit:", didInit.current);
-        
         if (didInit.current) {
-            console.log("[SIMPLE_AUTH] Already initialized, skipping");
             return;
         }
         didInit.current = true;
 
         const doInit = async () => {
-            console.log("[SIMPLE_AUTH] doInit starting");
-            console.log("[SIMPLE_AUTH] DEV_MODE:", DEV_MODE);
-
-            // DEV MODE
+            // DEV MODE - still call backend to check for reserved wallet
             if (DEV_MODE) {
-                console.log("[SIMPLE_AUTH] Dev mode - auto auth");
-                setToken(DEV_MOCK_TOKEN);
-                setUser(DEV_MOCK_USER);
-                setStatus("authenticated");
+                try {
+                    const res = await fetch("/api/auth/telegram", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ initData: "dev_mode" }),
+                    });
+
+                    if (res.ok) {
+                        const authData = await res.json();
+                        const { hasReservedWallet: reservedWallet } =
+                            authData.data;
+                        setToken(DEV_MOCK_TOKEN);
+                        setUser(DEV_MOCK_USER);
+                        setHasReservedWallet(reservedWallet || false);
+                        if (reservedWallet) {
+                            localStorage.setItem(
+                                HAS_RESERVED_WALLET_KEY,
+                                "true",
+                            );
+                        }
+                        setStatus("authenticated");
+                    } else {
+                        setToken(DEV_MOCK_TOKEN);
+                        setUser(DEV_MOCK_USER);
+                        setStatus("authenticated");
+                    }
+                } catch (err) {
+                    setToken(DEV_MOCK_TOKEN);
+                    setUser(DEV_MOCK_USER);
+                    setStatus("authenticated");
+                }
                 return;
             }
 
             // Wait for Telegram SDK
-            console.log("[SIMPLE_AUTH] Checking Telegram SDK...");
             let attempts = 0;
             while (attempts < 10) {
                 const tg = window.Telegram?.WebApp;
                 const data = tg?.initData;
-                console.log("[SIMPLE_AUTH] Attempt", attempts, "- WebApp:", !!tg, "initData:", !!data, "len:", data?.length);
-                
+
                 if (data && data.length > 0) {
-                    console.log("[SIMPLE_AUTH] Got initData, proceeding with auth");
                     tg?.ready();
-                    
+
                     // Check stored session first
                     const storedToken = localStorage.getItem(TOKEN_STORAGE_KEY);
-                    const storedExpires = localStorage.getItem(EXPIRES_STORAGE_KEY);
-                    if (storedToken && storedExpires && new Date(storedExpires) > new Date()) {
-                        console.log("[SIMPLE_AUTH] Using stored session");
+                    const storedExpires =
+                        localStorage.getItem(EXPIRES_STORAGE_KEY);
+                    if (
+                        storedToken &&
+                        storedExpires &&
+                        new Date(storedExpires) > new Date()
+                    ) {
                         setToken(storedToken);
-                        setUser(JSON.parse(localStorage.getItem(USER_STORAGE_KEY) || "{}"));
-                        setHasReservedWallet(localStorage.getItem(HAS_RESERVED_WALLET_KEY) === "true");
+                        setUser(
+                            JSON.parse(
+                                localStorage.getItem(USER_STORAGE_KEY) || "{}",
+                            ),
+                        );
+                        setHasReservedWallet(
+                            localStorage.getItem(HAS_RESERVED_WALLET_KEY) ===
+                                "true",
+                        );
                         setStatus("authenticated");
                         return;
                     }
-                    
+
                     // Auth with backend
-                    console.log("[SIMPLE_AUTH] Calling /api/auth/telegram");
                     const res = await fetch("/api/auth/telegram", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ initData: data }),
                     });
-                    
-                    console.log("[SIMPLE_AUTH] Response:", res.status);
-                    
+
                     if (res.ok) {
                         const authData = await res.json();
                         // Response is wrapped: { data: { token, user, expiresAt, hasReservedWallet } }
-                        const { token: newToken, user: newUser, expiresAt, hasReservedWallet: reservedWallet } = authData.data;
-                        console.log("[SIMPLE_AUTH] Auth success, hasReservedWallet:", reservedWallet);
+                        const {
+                            token: newToken,
+                            user: newUser,
+                            expiresAt,
+                            hasReservedWallet: reservedWallet,
+                        } = authData.data;
                         localStorage.setItem(TOKEN_STORAGE_KEY, newToken);
-                        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(newUser));
+                        localStorage.setItem(
+                            USER_STORAGE_KEY,
+                            JSON.stringify(newUser),
+                        );
                         localStorage.setItem(EXPIRES_STORAGE_KEY, expiresAt);
                         if (reservedWallet) {
-                            localStorage.setItem(HAS_RESERVED_WALLET_KEY, "true");
+                            localStorage.setItem(
+                                HAS_RESERVED_WALLET_KEY,
+                                "true",
+                            );
                         }
                         setToken(newToken);
                         setUser(newUser);
@@ -136,16 +170,15 @@ export function SimpleAuthProvider({ children }: { children: ReactNode }) {
                     }
                     return;
                 }
-                
+
                 attempts++;
-                await new Promise(r => setTimeout(r, 100));
+                await new Promise((r) => setTimeout(r, 100));
             }
-            
-            console.log("[SIMPLE_AUTH] No Telegram initData after 10 attempts");
+
             setStatus("unauthenticated");
         };
 
-        doInit().catch(err => {
+        doInit().catch((err) => {
             console.error("[SIMPLE_AUTH] Fatal error:", err);
             setError(String(err));
             setStatus("error");
@@ -169,7 +202,17 @@ export function SimpleAuthProvider({ children }: { children: ReactNode }) {
     };
 
     return (
-        <AuthContext.Provider value={{ status, token, user, error, hasReservedWallet, clearReservedWalletFlag, logout }}>
+        <AuthContext.Provider
+            value={{
+                status,
+                token,
+                user,
+                error,
+                hasReservedWallet,
+                clearReservedWalletFlag,
+                logout,
+            }}
+        >
             {children}
         </AuthContext.Provider>
     );

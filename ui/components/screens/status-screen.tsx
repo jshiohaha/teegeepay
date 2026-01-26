@@ -44,7 +44,7 @@ function TransactionItem({
                 <div className="flex items-center gap-2 mt-2">
                     <button
                         onClick={handleCopy}
-                        className="flex items-center gap-1.5 px-2 py-1 rounded bg-secondary/50 hover:bg-secondary transition-colors"
+                        className="flex items-center gap-1.5 px-2 py-1 rounded bg-secondary/50 hover:bg-secondary transition-colors hover:cursor-pointer"
                     >
                         <span className="font-mono text-xs text-muted-foreground">
                             {truncateString(step.txId, 8, 6)}
@@ -57,7 +57,7 @@ function TransactionItem({
                     </button>
                     <button
                         onClick={() => openTransactionInExplorer(step.txId)}
-                        className="p-1 rounded hover:bg-secondary/50 transition-colors"
+                        className="p-1 rounded hover:bg-secondary/50 transition-colors hover:cursor-pointer"
                     >
                         <ExternalLink className="w-3 h-3 text-muted-foreground" />
                     </button>
@@ -153,7 +153,7 @@ export function StatusScreen() {
                         <div className="flex items-center justify-center gap-2">
                             <button
                                 onClick={handleCopyTxId}
-                                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors"
+                                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors hover:cursor-pointer"
                             >
                                 <span className="font-mono text-sm text-foreground">
                                     {truncateString(transaction.txId!)}

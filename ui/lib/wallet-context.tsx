@@ -176,7 +176,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const [currentScreen, setCurrentScreen] = useState<Screen>("onboarding");
     const [isLoading, setIsLoading] = useState(true);
     const [isWalletCreated, setIsWalletCreated] = useState(false);
-    const [onboardingMode, setOnboardingMode] = useState<OnboardingMode>("create");
+    const [onboardingMode, setOnboardingMode] =
+        useState<OnboardingMode>("create");
     const [wallet, setWallet] = useState<WalletData>(emptyWallet);
     const [transaction, setTransactionData] =
         useState<TransactionData>(initialTransaction);
@@ -186,17 +187,21 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const [conversion, setConversionData] =
         useState<ConversionData>(initialConversion);
 
-    const { token, status, hasReservedWallet, clearReservedWalletFlag } = useSimpleAuth();
+    const { token, status, hasReservedWallet, clearReservedWalletFlag } =
+        useSimpleAuth();
 
     // Simple authenticated fetch - always check localStorage as fallback
-    const authFetch = async <T,>(path: string, init?: RequestInit): Promise<T> => {
+    const authFetch = async <T,>(
+        path: string,
+        init?: RequestInit,
+    ): Promise<T> => {
         // Get token from context or localStorage (context might be stale)
         const currentToken = token ?? localStorage.getItem("tg_auth_token");
-        
+
         if (!currentToken) {
             throw new Error("Not authenticated");
         }
-        
+
         const res = await fetch(path, {
             ...init,
             headers: {
@@ -205,12 +210,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                 Authorization: `Bearer ${currentToken}`,
             },
         });
-        
+
         if (!res.ok) {
             const text = await res.text().catch(() => "");
             throw new Error(`API error (${res.status}): ${text}`);
         }
-        
+
         return res.json();
     };
 
@@ -300,10 +305,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                         cusd,
                     });
                     setIsWalletCreated(true);
-                    
+
                     // If user has a reserved wallet they're claiming, show onboarding with claim mode
                     if (hasReservedWallet) {
-                        console.log("[WALLET] User has reserved wallet, showing claim UI");
                         setOnboardingMode("claim");
                         setCurrentScreen("onboarding");
                     } else {
@@ -322,7 +326,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }, [status, hasReservedWallet]);
 
     const createWallet = async () => {
-        console.log("[WALLET] createWallet called, token:", !!token);
         try {
             const response = await authFetch<ApiResponse<CreateWalletResponse>>(
                 "/api/wallets",
@@ -331,7 +334,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                     headers: { "Content-Type": "application/json" },
                 },
             );
-            console.log("[WALLET] Wallet created:", response);
 
             const address = response.data.pubkey;
             setWallet({
@@ -348,13 +350,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     };
 
     const claimWallet = async () => {
-        console.log("[WALLET] claimWallet called - clearing reserved flag and proceeding");
         clearReservedWalletFlag();
         setCurrentScreen("balance");
     };
 
     const requestAirdrop = async () => {
-        console.log("Requesting airdrop for wallet", wallet.address);
         const response = await authFetch<ApiResponse<AirdropResponse>>(
             `/api/wallets/${wallet.address}/airdrop`,
             {
@@ -372,9 +372,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     };
 
     const refreshBalance = async () => {
-        console.log("Refreshing balance for wallet", wallet.address);
         const { solBalance, cusd } = await fetchBalances(wallet.address);
-        console.log("Refreshed balance", { solBalance, cusd });
         setWallet((prev) => ({
             ...prev,
             solBalance,
@@ -384,7 +382,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
     const mint = async () => {
         const mint = process.env.NEXT_PUBLIC_CUSD_MINT;
-        console.log(`Minting ${mint} for wallet=${wallet.address}`);
         const response = await authFetch<ApiResponse<MintResponse>>(
             `/api/tokens/${wallet.address}/mint`,
             {
@@ -413,7 +410,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             },
         );
 
-        console.log("Transfer response", response.data);
+        console.log("Transfer", response.data);
 
         return response.data.transactions;
     };
@@ -433,7 +430,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             },
         );
 
-        console.log("Telegram transfer response", response.data);
+        console.log("Telegram transfer", response.data);
 
         return response.data.transactions;
     };
@@ -489,7 +486,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                     }),
                 },
             );
-            console.log("Withdraw response", response.data.transactions);
+
             return response.data.transactions;
         } else {
             // Deposit: public -> private
@@ -505,7 +502,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                     }),
                 },
             );
-            console.log("Withdraw response", response);
+
             return response.data.transactions;
         }
     };
