@@ -10,6 +10,8 @@ import {
 
 import { useSimpleAuth } from "@/lib/auth-context-simple";
 
+export type OnboardingMode = "create" | "claim";
+
 export type Screen =
     | "onboarding"
     | "balance"
@@ -38,6 +40,8 @@ export interface TransactionStep {
     txId: string;
 }
 
+export type TransferType = "solana" | "telegram";
+
 interface TransactionData {
     recipient: string;
     amount: string;
@@ -45,6 +49,7 @@ interface TransactionData {
     fee: number;
     txId?: string;
     steps?: TransactionStep[];
+    transferType: TransferType;
 }
 
 interface ConversionData {
@@ -58,12 +63,18 @@ interface WalletContextType {
     wallet: WalletData;
     isLoading: boolean;
     isWalletCreated: boolean;
+    onboardingMode: OnboardingMode;
     createWallet: () => Promise<void>;
+    claimWallet: () => Promise<void>;
     requestAirdrop: () => Promise<void>;
     refreshBalance: () => Promise<void>;
     mint: () => Promise<string>;
     transfer: (
         recipient: string,
+        amount: string,
+    ) => Promise<TransactionResult[]>;
+    transferByTelegram: (
+        username: string,
         amount: string,
     ) => Promise<TransactionResult[]>;
     transaction: TransactionData;
@@ -94,6 +105,7 @@ const initialTransaction: TransactionData = {
     amount: "",
     network: "Solana Surfpool",
     fee: 0.000005,
+    transferType: "solana",
 };
 
 const initialConversion: ConversionData = {
@@ -164,6 +176,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const [currentScreen, setCurrentScreen] = useState<Screen>("onboarding");
     const [isLoading, setIsLoading] = useState(true);
     const [isWalletCreated, setIsWalletCreated] = useState(false);
+    const [onboardingMode, setOnboardingMode] = useState<OnboardingMode>("create");
     const [wallet, setWallet] = useState<WalletData>(emptyWallet);
     const [transaction, setTransactionData] =
         useState<TransactionData>(initialTransaction);
@@ -173,7 +186,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const [conversion, setConversionData] =
         useState<ConversionData>(initialConversion);
 
-    const { token, status } = useSimpleAuth();
+    const { token, status, hasReservedWallet, clearReservedWalletFlag } = useSimpleAuth();
 
     // Simple authenticated fetch - always check localStorage as fallback
     const authFetch = async <T,>(path: string, init?: RequestInit): Promise<T> => {
@@ -287,7 +300,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                         cusd,
                     });
                     setIsWalletCreated(true);
-                    setCurrentScreen("balance");
+                    
+                    // If user has a reserved wallet they're claiming, show onboarding with claim mode
+                    if (hasReservedWallet) {
+                        console.log("[WALLET] User has reserved wallet, showing claim UI");
+                        setOnboardingMode("claim");
+                        setCurrentScreen("onboarding");
+                    } else {
+                        setCurrentScreen("balance");
+                    }
                 }
             } catch (error) {
                 console.error("Failed to check existing wallets:", error);
@@ -298,7 +319,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
         checkExistingWallet();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [status]);
+    }, [status, hasReservedWallet]);
 
     const createWallet = async () => {
         console.log("[WALLET] createWallet called, token:", !!token);
@@ -324,6 +345,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             console.error("[WALLET] createWallet error:", error);
             throw error;
         }
+    };
+
+    const claimWallet = async () => {
+        console.log("[WALLET] claimWallet called - clearing reserved flag and proceeding");
+        clearReservedWalletFlag();
+        setCurrentScreen("balance");
     };
 
     const requestAirdrop = async () => {
@@ -387,6 +414,26 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         );
 
         console.log("Transfer response", response.data);
+
+        return response.data.transactions;
+    };
+
+    const transferByTelegram = async (username: string, amount: string) => {
+        const response = await authFetch<ApiResponse<TransferResponse>>(
+            `/api/transfers/telegram`,
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    source: wallet.address,
+                    telegramUsername: username,
+                    mint: process.env.NEXT_PUBLIC_CUSD_MINT,
+                    amount,
+                }),
+            },
+        );
+
+        console.log("Telegram transfer response", response.data);
 
         return response.data.transactions;
     };
@@ -471,9 +518,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                 wallet,
                 isLoading,
                 isWalletCreated,
+                onboardingMode,
                 mint,
                 transfer,
+                transferByTelegram,
                 createWallet,
+                claimWallet,
                 requestAirdrop,
                 refreshBalance,
                 transaction,

@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::{debug, info, warn, error};
+use tracing::{error, info};
 
 #[derive(Debug, Deserialize)]
 pub struct TelegramAuthRequest {
@@ -38,6 +38,8 @@ pub struct TelegramAuthResponse {
     pub user: TelegramUser,
     #[serde(rename = "expiresAt")]
     pub expires_at: String,
+    #[serde(rename = "hasReservedWallet")]
+    pub has_reserved_wallet: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -61,28 +63,14 @@ struct TelegramInitDataUser {
 /// Verify Telegram WebApp initData
 /// https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
 fn verify_init_data(init_data: &str, bot_token: &str) -> Result<TelegramUser, AppError> {
-    info!("[TG_AUTH] verify_init_data called, initData length: {}", init_data.len());
-    debug!("[TG_AUTH] initData: {}", init_data);
-    
     let params: HashMap<String, String> = url::form_urlencoded::parse(init_data.as_bytes())
         .into_owned()
         .collect();
 
-    info!("[TG_AUTH] parsed {} params from initData", params.len());
-    for (k, v) in &params {
-        if k == "hash" {
-            debug!("[TG_AUTH] param {}={}...", k, &v[..v.len().min(16)]);
-        } else {
-            debug!("[TG_AUTH] param {}={}", k, v);
-        }
-    }
-
-    let hash = params
-        .get("hash")
-        .ok_or_else(|| {
-            error!("[TG_AUTH] Missing hash in initData");
-            AppError::bad_request(anyhow::anyhow!("Missing hash in initData"))
-        })?;
+    let hash = params.get("hash").ok_or_else(|| {
+        error!("missing hash in initData");
+        AppError::bad_request(anyhow::anyhow!("Missing hash in initData"))
+    })?;
 
     // Build data-check-string: sort keys alphabetically, exclude hash
     let mut check_params: Vec<(&str, &str)> = params
@@ -98,8 +86,6 @@ fn verify_init_data(init_data: &str, bot_token: &str) -> Result<TelegramUser, Ap
         .collect::<Vec<_>>()
         .join("\n");
 
-    debug!("[TG_AUTH] data_check_string: {}", data_check_string);
-
     // Create secret key: HMAC-SHA256("WebAppData", bot_token)
     let mut secret_hmac =
         Hmac::<Sha256>::new_from_slice(b"WebAppData").expect("HMAC can take key of any size");
@@ -112,19 +98,13 @@ fn verify_init_data(init_data: &str, bot_token: &str) -> Result<TelegramUser, Ap
     data_hmac.update(data_check_string.as_bytes());
     let calculated_hash = hex::encode(data_hmac.finalize().into_bytes());
 
-    info!("[TG_AUTH] hash comparison - provided: {}..., calculated: {}...", 
-        &hash[..hash.len().min(16)], 
-        &calculated_hash[..calculated_hash.len().min(16)]);
-
     if calculated_hash != *hash {
-        error!("[TG_AUTH] Hash mismatch! Signature verification failed");
+        error!("signature verification failed: hash mismatch");
         return Err(AppError::new(
             anyhow::anyhow!("Invalid initData signature"),
             StatusCode::UNAUTHORIZED,
         ));
     }
-    
-    info!("[TG_AUTH] Hash verified successfully");
 
     // Optionally check auth_date to prevent replay attacks (e.g., within last hour)
     if let Some(auth_date_str) = params.get("auth_date") {
@@ -132,10 +112,8 @@ fn verify_init_data(init_data: &str, bot_token: &str) -> Result<TelegramUser, Ap
             let now = Utc::now().timestamp();
             let age_seconds = now - auth_date;
             let max_age_seconds = 3600; // 1 hour
-            info!("[TG_AUTH] auth_date check - auth_date: {}, now: {}, age: {}s, max: {}s", 
-                auth_date, now, age_seconds, max_age_seconds);
+
             if age_seconds > max_age_seconds {
-                error!("[TG_AUTH] initData expired! age={}s > max={}s", age_seconds, max_age_seconds);
                 return Err(AppError::new(
                     anyhow::anyhow!("initData expired"),
                     StatusCode::UNAUTHORIZED,
@@ -145,22 +123,15 @@ fn verify_init_data(init_data: &str, bot_token: &str) -> Result<TelegramUser, Ap
     }
 
     // Extract user data
-    let user_json = params
-        .get("user")
-        .ok_or_else(|| {
-            error!("[TG_AUTH] Missing user in initData");
-            AppError::bad_request(anyhow::anyhow!("Missing user in initData"))
-        })?;
+    let user_json = params.get("user").ok_or_else(|| {
+        error!("missing user in initData");
+        AppError::bad_request(anyhow::anyhow!("Missing user in initData"))
+    })?;
 
-    info!("[TG_AUTH] user_json: {}", user_json);
-
-    let tg_user: TelegramInitDataUser = serde_json::from_str(user_json)
-        .map_err(|e| {
-            error!("[TG_AUTH] Failed to parse user JSON: {}", e);
-            AppError::bad_request(anyhow::anyhow!("Invalid user JSON: {}", e))
-        })?;
-
-    info!("[TG_AUTH] Parsed user - id: {}, username: {:?}", tg_user.id, tg_user.username);
+    let tg_user: TelegramInitDataUser = serde_json::from_str(user_json).map_err(|e| {
+        error!("failed to parse user JSON: {}", e);
+        AppError::bad_request(anyhow::anyhow!("Invalid user JSON: {}", e))
+    })?;
 
     Ok(TelegramUser {
         telegram_user_id: tg_user.id,
@@ -197,11 +168,8 @@ pub async fn handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<TelegramAuthRequest>,
 ) -> Result<ApiResponse<TelegramAuthResponse>, AppError> {
-    info!("[TG_AUTH] ========== AUTH HANDLER CALLED ==========");
-    info!("[TG_AUTH] dev_mode: {}, initData length: {}", state.dev_mode, payload.init_data.len());
-    
     let user = if state.dev_mode {
-        info!("[TG_AUTH] Dev mode enabled, using mock user");
+        info!("dev mode enabled, using mock user");
         TelegramUser {
             telegram_user_id: 123,
             username: Some("dev-user".to_string()),
@@ -210,15 +178,10 @@ pub async fn handler(
             language_code: Some("en".to_string()),
         }
     } else {
-        info!("[TG_AUTH] Production mode, verifying initData");
         verify_init_data(&payload.init_data, &state.telegram_bot_token)?
     };
 
-    info!("[TG_AUTH] User verified: telegram_user_id={}, username={:?}", 
-        user.telegram_user_id, user.username);
-
-    info!("[TG_AUTH] Upserting user to database");
-    upsert_telegram_user(
+    let upsert_result = upsert_telegram_user(
         &state.db,
         user.telegram_user_id,
         user.username.as_deref(),
@@ -228,19 +191,16 @@ pub async fn handler(
     )
     .await
     .map_err(|e| {
-        error!("[TG_AUTH] Failed to save user to DB: {}", e);
+        error!("failed to save user to DB: {}", e);
         AppError::internal_server_error(anyhow::anyhow!("Failed to save user: {}", e))
     })?;
 
-    info!("[TG_AUTH] User saved to DB, generating JWT");
     let (token, expires_at) = generate_jwt(&user, &state.jwt_secret)?;
-    
-    info!("[TG_AUTH] JWT generated, expires_at: {}, token length: {}", expires_at, token.len());
-    info!("[TG_AUTH] ========== AUTH SUCCESS ==========");
 
     Ok(ApiResponse::new(TelegramAuthResponse {
         token,
         user,
         expires_at,
+        has_reserved_wallet: upsert_result.claimed_reserved_wallet,
     }))
 }

@@ -14,6 +14,7 @@ export const DEV_MODE = process.env.NEXT_PUBLIC_DEV_MODE === "true";
 const TOKEN_STORAGE_KEY = "tg_auth_token";
 const USER_STORAGE_KEY = "tg_auth_user";
 const EXPIRES_STORAGE_KEY = "tg_auth_expires";
+const HAS_RESERVED_WALLET_KEY = "tg_has_reserved_wallet";
 
 export type TelegramUser = {
     telegramUserId: number;
@@ -30,6 +31,8 @@ interface AuthContextType {
     token: string | null;
     user: TelegramUser | null;
     error: string | null;
+    hasReservedWallet: boolean;
+    clearReservedWalletFlag: () => void;
     logout: () => void;
 }
 
@@ -49,6 +52,7 @@ export function SimpleAuthProvider({ children }: { children: ReactNode }) {
     const [token, setToken] = useState<string | null>(null);
     const [user, setUser] = useState<TelegramUser | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [hasReservedWallet, setHasReservedWallet] = useState(false);
     const didInit = useRef(false);
 
     console.log("[SIMPLE_AUTH] Component render - status:", status);
@@ -94,6 +98,7 @@ export function SimpleAuthProvider({ children }: { children: ReactNode }) {
                         console.log("[SIMPLE_AUTH] Using stored session");
                         setToken(storedToken);
                         setUser(JSON.parse(localStorage.getItem(USER_STORAGE_KEY) || "{}"));
+                        setHasReservedWallet(localStorage.getItem(HAS_RESERVED_WALLET_KEY) === "true");
                         setStatus("authenticated");
                         return;
                     }
@@ -110,14 +115,18 @@ export function SimpleAuthProvider({ children }: { children: ReactNode }) {
                     
                     if (res.ok) {
                         const authData = await res.json();
-                        // Response is wrapped: { data: { token, user, expiresAt } }
-                        const { token: newToken, user: newUser, expiresAt } = authData.data;
-                        console.log("[SIMPLE_AUTH] Auth success");
+                        // Response is wrapped: { data: { token, user, expiresAt, hasReservedWallet } }
+                        const { token: newToken, user: newUser, expiresAt, hasReservedWallet: reservedWallet } = authData.data;
+                        console.log("[SIMPLE_AUTH] Auth success, hasReservedWallet:", reservedWallet);
                         localStorage.setItem(TOKEN_STORAGE_KEY, newToken);
                         localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(newUser));
                         localStorage.setItem(EXPIRES_STORAGE_KEY, expiresAt);
+                        if (reservedWallet) {
+                            localStorage.setItem(HAS_RESERVED_WALLET_KEY, "true");
+                        }
                         setToken(newToken);
                         setUser(newUser);
+                        setHasReservedWallet(reservedWallet || false);
                         setStatus("authenticated");
                     } else {
                         const text = await res.text();
@@ -143,17 +152,24 @@ export function SimpleAuthProvider({ children }: { children: ReactNode }) {
         });
     }, []);
 
+    const clearReservedWalletFlag = () => {
+        localStorage.removeItem(HAS_RESERVED_WALLET_KEY);
+        setHasReservedWallet(false);
+    };
+
     const logout = () => {
         localStorage.removeItem(TOKEN_STORAGE_KEY);
         localStorage.removeItem(USER_STORAGE_KEY);
         localStorage.removeItem(EXPIRES_STORAGE_KEY);
+        localStorage.removeItem(HAS_RESERVED_WALLET_KEY);
         setToken(null);
         setUser(null);
+        setHasReservedWallet(false);
         setStatus("unauthenticated");
     };
 
     return (
-        <AuthContext.Provider value={{ status, token, user, error, logout }}>
+        <AuthContext.Provider value={{ status, token, user, error, hasReservedWallet, clearReservedWalletFlag, logout }}>
             {children}
         </AuthContext.Provider>
     );

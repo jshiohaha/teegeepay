@@ -15,12 +15,14 @@ import {
     ArrowRight,
     ChevronLeft,
     ExternalLink,
+    User,
 } from "lucide-react";
 import { useState } from "react";
 
 export function ReviewScreen() {
     const {
         transfer,
+        transferByTelegram,
         transaction,
         setTransactionMessage,
         setCurrentScreen,
@@ -46,10 +48,20 @@ export function ReviewScreen() {
         try {
             const adjustedAmount =
                 Number.parseFloat(transaction.amount) * 10 ** 9;
-            const signatures = await transfer(
-                transaction.recipient,
-                adjustedAmount.toString(),
-            );
+            
+            let signatures;
+            if (transaction.transferType === "telegram") {
+                const username = transaction.recipient.replace(/^@/, "");
+                signatures = await transferByTelegram(
+                    username,
+                    adjustedAmount.toString(),
+                );
+            } else {
+                signatures = await transfer(
+                    transaction.recipient,
+                    adjustedAmount.toString(),
+                );
+            }
 
             if (signatures.length === 0) {
                 setTransactionStatus("failed");
@@ -149,30 +161,41 @@ export function ReviewScreen() {
                                 To
                             </p>
                             <div className="flex items-center gap-2">
-                                <button className="flex-1 flex items-center justify-between rounded-lg">
-                                    <span className="font-mono text-sm text-foreground">
-                                        {truncateString(transaction.recipient)}
-                                    </span>
-                                </button>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button
-                                            variant="outline"
-                                            size="icon"
-                                            className="h-[32px] w-[32px] shrink-0 hover:cursor-pointer"
-                                            onClick={() =>
-                                                openAddressInExplorer(
-                                                    transaction.recipient,
-                                                )
-                                            }
-                                        >
-                                            <ExternalLink className="w-4 h-4" />
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                        View on Explorer
-                                    </TooltipContent>
-                                </Tooltip>
+                                {transaction.transferType === "telegram" ? (
+                                    <div className="flex-1 flex items-center gap-2">
+                                        <User className="w-4 h-4 text-muted-foreground" />
+                                        <span className="text-sm font-medium text-foreground">
+                                            {transaction.recipient}
+                                        </span>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <button className="flex-1 flex items-center justify-between rounded-lg">
+                                            <span className="font-mono text-sm text-foreground">
+                                                {truncateString(transaction.recipient)}
+                                            </span>
+                                        </button>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Button
+                                                    variant="outline"
+                                                    size="icon"
+                                                    className="h-[32px] w-[32px] shrink-0 hover:cursor-pointer"
+                                                    onClick={() =>
+                                                        openAddressInExplorer(
+                                                            transaction.recipient,
+                                                        )
+                                                    }
+                                                >
+                                                    <ExternalLink className="w-4 h-4" />
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                View on Explorer
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </>
+                                )}
                             </div>
                         </div>
 

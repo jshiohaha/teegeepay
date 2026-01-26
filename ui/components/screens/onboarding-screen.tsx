@@ -2,21 +2,27 @@
 
 import { Button } from "@/components/ui/button";
 import { useWallet } from "@/lib/wallet-context";
-import { Shield, Sparkles, Zap } from "lucide-react";
+import { Gift, Shield, Sparkles, Zap } from "lucide-react";
 import { useState } from "react";
 
 export function OnboardingScreen() {
-    const { createWallet } = useWallet();
+    const { createWallet, claimWallet, onboardingMode } = useWallet();
 
     const [isCreating, setIsCreating] = useState(false);
     const [debugMsg, setDebugMsg] = useState("Ready");
 
+    const isClaimMode = onboardingMode === "claim";
+
     const handleCreate = async () => {
         setDebugMsg("Clicked!");
         setIsCreating(true);
-        setDebugMsg("Creating wallet...");
+        setDebugMsg(isClaimMode ? "Claiming wallet..." : "Creating wallet...");
         try {
-            await createWallet();
+            if (isClaimMode) {
+                await claimWallet();
+            } else {
+                await createWallet();
+            }
             setDebugMsg("Success!");
             setIsCreating(false);
         } catch (error) {
@@ -44,14 +50,20 @@ export function OnboardingScreen() {
                 {/* Hero Section */}
                 <div className="flex-1 flex flex-col items-center justify-center text-center">
                     <div className="w-20 h-20 rounded-2xl bg-linear-to-br from-primary/10 to-primary/5 flex items-center justify-center mb-6">
-                        <Sparkles className="w-10 h-10 text-primary" />
+                        {isClaimMode ? (
+                            <Gift className="w-10 h-10 text-primary" />
+                        ) : (
+                            <Sparkles className="w-10 h-10 text-primary" />
+                        )}
                     </div>
 
                     <h1 className="text-2xl font-bold text-foreground mb-2 text-balance">
-                        For Your Eyes Only
+                        {isClaimMode ? "You've Got Crypto!" : "For Your Eyes Only"}
                     </h1>
                     <p className="text-muted-foreground text-lg leading-relaxed max-w-[260px]">
-                        Send and receive confidentially
+                        {isClaimMode 
+                            ? "Someone sent you funds. Claim your wallet to access them."
+                            : "Send and receive confidentially"}
                     </p>
                 </div>
 
@@ -98,11 +110,11 @@ export function OnboardingScreen() {
                     {isCreating ? (
                         <span className="flex items-center gap-2">
                             <span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                            Creating Wallet...
+                            {isClaimMode ? "Claiming Wallet..." : "Creating Wallet..."}
                         </span>
                     ) : (
                         <span className="text-md hover:cursor-pointer">
-                            Create Wallet
+                            {isClaimMode ? "Claim Wallet" : "Create Wallet"}
                         </span>
                     )}
                 </Button>

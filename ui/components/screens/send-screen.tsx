@@ -3,9 +3,20 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useWallet } from "@/lib/wallet-context";
+import { useWallet, type TransferType } from "@/lib/wallet-context";
 import { ChevronLeft, Wallet } from "lucide-react";
 import { useState } from "react";
+
+const BASE58_REGEX = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+const TELEGRAM_USERNAME_REGEX = /^@[a-zA-Z][a-zA-Z0-9_]{4,31}$/;
+
+function detectTransferType(input: string): TransferType | null {
+    const trimmed = input.trim();
+    if (trimmed.startsWith("@")) {
+        return TELEGRAM_USERNAME_REGEX.test(trimmed) ? "telegram" : null;
+    }
+    return BASE58_REGEX.test(trimmed) ? "solana" : null;
+}
 
 export function SendScreen() {
     const { wallet, setCurrentScreen, setTransaction, transaction } =
@@ -20,11 +31,18 @@ export function SendScreen() {
     const validateAndContinue = () => {
         const newErrors: { recipient?: string; amount?: string } = {};
 
-        const base58Regex = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
-        if (!recipient.trim()) {
-            newErrors.recipient = "Please enter a recipient address";
-        } else if (!base58Regex.test(recipient)) {
-            newErrors.recipient = "Invalid Solana address format";
+        const trimmedRecipient = recipient.trim();
+        if (!trimmedRecipient) {
+            newErrors.recipient = "Please enter a recipient";
+        } else {
+            const transferType = detectTransferType(trimmedRecipient);
+            if (!transferType) {
+                if (trimmedRecipient.startsWith("@")) {
+                    newErrors.recipient = "Invalid Telegram username (must be 5-32 characters)";
+                } else {
+                    newErrors.recipient = "Enter a valid @username or Solana address";
+                }
+            }
         }
 
         const amountNum = parseFloat(amount);
@@ -39,7 +57,8 @@ export function SendScreen() {
         setErrors(newErrors);
 
         if (Object.keys(newErrors).length === 0) {
-            setTransaction({ recipient, amount });
+            const transferType = detectTransferType(trimmedRecipient)!;
+            setTransaction({ recipient: trimmedRecipient, amount, transferType });
             setCurrentScreen("review");
         }
     };
@@ -74,7 +93,7 @@ export function SendScreen() {
                         </Label>
                         <Input
                             id="recipient"
-                            placeholder="Enter Solana address"
+                            placeholder="@username or Solana address"
                             value={recipient}
                             onChange={(e) => {
                                 setRecipient(e.target.value);

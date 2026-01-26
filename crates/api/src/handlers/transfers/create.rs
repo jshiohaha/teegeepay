@@ -117,7 +117,7 @@ pub async fn handler(
     };
 
     // TODO: how to handle when the user needs to sign on the client?
-    let sender_kp = Arc::new(wallet.keypair);
+    let sender_kp = wallet.keypair.clone();
     let recipient = payload.recipient;
     let mint = payload.mint;
     let amount = payload.amount;

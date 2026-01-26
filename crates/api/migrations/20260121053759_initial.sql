@@ -17,6 +17,10 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE INDEX idx_users_user_id ON users(user_id);
 CREATE INDEX idx_users_telegram_user_id ON users(telegram_user_id);
+-- Add unique index on telegram_username to support reserved wallets for users who haven't logged in yet.
+-- This allows us to create a wallet for a username before they authenticate.
+-- When they later log in, we'll link their telegram_user_id to this existing record.
+CREATE UNIQUE INDEX idx_users_telegram_username ON users(telegram_username) WHERE telegram_username IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS wallets (
     id BIGSERIAL PRIMARY KEY,
