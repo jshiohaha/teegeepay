@@ -181,6 +181,11 @@ pub async fn handler(
         verify_init_data(&payload.init_data, &state.telegram_bot_token)?
     };
 
+    info!(
+        "[TG_AUTH] User from Telegram - id: {}, username: {:?}",
+        user.telegram_user_id, user.username
+    );
+
     let upsert_result = upsert_telegram_user(
         &state.db,
         user.telegram_user_id,
