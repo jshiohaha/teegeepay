@@ -1,4 +1,5 @@
 notes/
+keypairs/
 target/
 **/*.rs.bk
 **/*.swp
