@@ -61,14 +61,3 @@ solana-account = { version = "3.0.0", features = ["serde"] }
 solana-hash = "4.0.1"
 solana-program-pack = "3.0.0"
 solana-message = "3.0.0"
-
-########################
-# TODO...
-########################
-
-# rustls = "0.20.8"
-# rustls-native-certs = "0.6.2"
-# tokio-postgres = { version = "0.7.11", features = ["with-chrono-0_4", "with-uuid-1"] }
-# tokio-postgres-rustls = "0.9.0"
-# native-tls = "0.2"
-# postgres-native-tls = "0.5"

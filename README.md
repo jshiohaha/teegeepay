@@ -1,108 +1,78 @@
-# Cypherpay
+# TeeGee Pay
 
-A Telegram mini app enabling confidential Solana transfers over Telegram. Built for hackathon purposes, this project demonstrates SPL Token-2022 confidential transfer capabilities through a user-friendly Telegram interface.
+### Send crypto confidentially in Telegram, on Solana.
+
+![cover](./assets/images/cover.png)
+
+## What is it?
+
+A Telegram mini app enabling confidential transfers over Telegram, built on SPL Token‑2022's confidential transfers extension. This project was started for the [2026 Solana Privacy Hackathon](https://solana.com/privacyhack) and demonstrates the power of confidential transfers through every crypto user's favorite chat app: Telegram.
+
+## Features
+
+- No complex jargon, no infinite transaction signing experiences, zero friction to get started
+- Use the features of Token2022 confidential transfers: deposit, withdraw, transfer
+- Enable frictionless confidential transfers on Telegram via a Solana address or Telegram handle
+- Quickly check public and private balances and compare against explorer data
+- Backend-managed wallets associated with Telegram handles
 
 ## Architecture
-
-```
-┌─────────────────┐      ┌──────────────┐      ┌─────────────────┐
-│  Telegram User  │─────▶│  Next.js UI  │─────▶│   Rust API      │
-│   (Mini App)    │      │   (Frontend) │      │   (Axum)        │
-└─────────────────┘      └──────────────┘      └────────┬────────┘
-                                                         │
-                                                         ▼
-                                                ┌─────────────────┐
-                                                │  Solana Network │
-                                                │  (SPL Token-22) │
-                                                └─────────────────┘
-```
 
 The Next.js UI serves as a Telegram mini app that communicates with the Rust API backend. The API manages wallet keypairs, builds and executes Solana transactions using SPL Token-2022 with confidential transfer extensions.
 
 **Important Security Note**: Since Telegram doesn't have an embedded wallet, this implementation stores user keypairs on the backend (non-custodial wallets managed server-side). This is **NOT** a secure production implementation and is intended for hackathon/demonstration purposes only.
 
-## Features
-
-- Confidential transfers via Solana address or Telegram handle
-- Backend-managed wallets associated with Telegram handles
-- SPL Token-2022 confidential transfer support
-- PostgreSQL-backed transaction history
-
 ## Tech Stack
 
-### Backend (crates/api)
+### Backend
 
 - **Rust** with Axum web framework
 - **SQLx** for database operations
 - **Tokio** async runtime
-- **Solana SDK 3.0** with SPL Token-2022
+- **Solana 3.0** crates, **spl-token-client** for Token2022 operations
 - **PostgreSQL** for data persistence
 
-### Frontend (ui)
+### Frontend
 
-- **Next.js** (React framework)
-- Telegram Mini App integration
-- Modern UI components
+- Next.js
+- Telegram Mini App
 
-### Blockchain
+### Solana
 
-- **SPL Token-2022** with confidential transfer extensions
+- SPL Token-2022 with confidential transfer extensions
+- Surfpool for local testing
+- Helius RPC (surfpool syncing on localnet, main RPC on mainnet)
 - No custom smart contracts required
 
-## Prerequisites
+## Minimum Requirements
 
-- **Node.js 18+** and npm 10+
-- **Rust 1.92+**
-- **Solana CLI 2.3+**
-- **Docker** and Docker Compose
-- **pnpm** (for frontend package management)
-- **Solana cluster with confidential transfers enabled** (e.g., local Surfpool instance)
+- Node.js 20
+- Rust 1.92
+- Solana CLI 2.3
+- Docker and Docker Compose
+- pnpm
+- Solana cluster with confidential transfers enabled (right now, that is a local surfpool instance)
 
 ## Project Structure
 
 ```
 .
-├── crates/
-│   └── api/              # Rust API backend
-│       ├── src/          # API source code
-│       ├── migrations/   # Database migrations
-│       ├── Dockerfile    # API container definition
-│       └── .env.example  # Environment variable template
-├── ui/                   # Next.js frontend
-│   ├── app/             # Next.js app directory
-│   ├── components/      # React components
-│   ├── lib/             # Utility functions
-│   └── styles/          # CSS/styling
-├── scripts/             # Utility scripts
-│   ├── api-local.sh     # Run API locally
-│   ├── create-mint.sh   # Create token mint
-│   ├── reset-network.sh # Reset Solana network
-│   └── run-migrations.sh# Run database migrations
-├── docker-compose.yml   # Docker services configuration
-└── Cargo.toml          # Rust workspace configuration
+├── crates
+│   └── api              # Rust API backend
+│       ├── src          # API source code
+│       ├── migrations   # Database migrations
+├── ui                   # Next.js frontend
+└── scripts              # Utility scripts
 ```
 
 ## Setup
 
 ### 1. Environment Variables
 
-Copy the example environment file:
+Copy the example environment file and configure the variables in `.env` as needed:
 
 ```bash
-cp crates/api/.env.example crates/api/.env
-```
-
-Configure the following variables in `crates/api/.env`:
-
-```bash
-DATABASE_URL=postgres://user:password@localhost:5432/solana_api
-RUST_LOG=info
-RPC_URL=http://localhost:8899
-TELEGRAM_BOT_TOKEN=your_telegram_bot_token
-JWT_SECRET=your_jwt_secret
-AUTHORITY_KP=base58_encoded_keypair
-AUDITOR_KP=base58_encoded_keypair
-DEV_MODE=false
+cp .env.example .env
 ```
 
 **Required Environment Variables:**
@@ -113,20 +83,27 @@ DEV_MODE=false
 - `AUDITOR_KP`: Base58-encoded auditor keypair for confidential transfers
 - `RPC_URL`: Solana RPC endpoint with confidential transfer support
 
+Set `DEV_MODE=true` when testing locally.
+
 ### 2. UI Environment Variables
 
-Configure the UI environment variables in `ui/.env.local` as needed.
+Copy the example environment file and the variables in `.env` as needed:
+
+```bash
+cp ui/.env.example ui/.env
+```
+
+Set `NEXT_PUBLIC_DEV_MODE=true` when testing locally.
 
 ### 3. Solana Network
 
-Ensure you have a Solana cluster running with confidential transfer support. For local development, use Surfpool:
+Ensure you have a Solana cluster running with confidential transfer support. For local development, use Surfpool. For the hackathon development, I built surfpool from source on [this](https://github.com/txtx/surfpool/tree/zk-edge) branch.
 
 ```bash
-# Start a local Surfpool instance with confidential transfers enabled
-surfpool start
+./target/release/surfpool start
 ```
 
-Or connect to a devnet/testnet endpoint that supports SPL Token-2022.
+Once re-deployed to devnet/mainnet, you can use those clustes.
 
 ## Development
 
@@ -158,23 +135,14 @@ The UI will be available at `http://localhost:3000`.
 
 ## Utility Scripts
 
-The `scripts/` directory contains helpful utilities:
+The `scripts/` directory contains helpful utilities mostly for local setup/testing.
 
-- `api-local.sh` - Run the API outside of Docker for development
+- `api-local.sh` - Run the API outside of Docker for development. You will need to specify a running PostgreSQL instance and Solana cluster.
 - `create-mint.sh` - Create a new token mint with confidential transfers
-- `reset-network.sh` - Reset the Solana network state
+- `reset-network.sh` - Reset the Surfpool network state
 - `run-migrations.sh` - Manually run database migrations
 - `db-up.sh` - Start only the database container
 - `container-down.sh` - Stop all containers
-
-## API Endpoints
-
-The API runs on port 6767 and provides endpoints for:
-
-- User authentication via Telegram
-- Wallet management
-- Confidential transfer operations
-- Transaction history
 
 ## Important Notes
 
@@ -185,10 +153,4 @@ The API runs on port 6767 and provides endpoints for:
 
 ## License
 
-MIT License - Provided "as-is" without warranty of any kind.
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+MIT License. See `LICENSE`.

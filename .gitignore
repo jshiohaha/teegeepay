@@ -19,3 +19,4 @@ Icon?
 
 *.log
 .env*
+!.env.example
