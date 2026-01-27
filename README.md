@@ -1,6 +1,6 @@
 # TeeGee Pay
 
-### Send crypto confidentially in Telegram, on Solana.
+### Send crypto confidentially in Telegram, on Solana
 
 ![cover](./assets/images/cover.png)
 
@@ -12,9 +12,9 @@ A Telegram mini app enabling confidential transfers over Telegram, built on SPL 
 
 - No complex jargon, no infinite transaction signing experiences, zero friction to get started
 - Use the features of Token2022 confidential transfers: deposit, withdraw, transfer
-- Enable frictionless confidential transfers on Telegram via a Solana address or Telegram handle
+- Enable frictionless confidential transfers to a Solana address or other Telegram users
 - Quickly check public and private balances and compare against explorer data
-- Backend-managed wallets associated with Telegram handles
+- Non-custodial keypairs stored in AWS KMS using Ed25519
 
 ## Architecture
 
