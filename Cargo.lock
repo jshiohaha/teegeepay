@@ -3770,6 +3770,7 @@ dependencies = [
  "spl-token-client",
  "spl-token-confidential-transfer-proof-extraction",
  "spl-token-confidential-transfer-proof-generation",
+ "spl-token-metadata-interface",
  "sqlx",
  "thiserror 1.0.69",
  "tokio",

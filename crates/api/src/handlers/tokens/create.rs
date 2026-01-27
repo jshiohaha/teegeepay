@@ -23,6 +23,9 @@ pub struct CreateTokenRequest {
     /// Symbol of the new token
     #[serde_as(as = "DisplayFromStr")]
     pub symbol: String,
+    /// URI for additional metadata
+    #[serde_as(as = "Option<DisplayFromStr>")]
+    pub uri: Option<String>,
     /// Decimals for the new token
     pub decimals: u8,
     /// Optional keypair of the new token
@@ -45,8 +48,15 @@ pub async fn handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<CreateTokenRequest>,
 ) -> Result<ApiResponse<CreateTokenResponse>, AppError> {
-    let mint_keypair = payload
-        .mint_keypair
+    let CreateTokenRequest {
+        name,
+        symbol,
+        uri,
+        decimals,
+        mint_keypair: mint_keypair_b58,
+    } = payload;
+
+    let mint_keypair = mint_keypair_b58
         .map(|kp| Keypair::from_base58_string(&kp))
         .unwrap_or(Keypair::new());
     let mint_keypair = Arc::new(mint_keypair);
@@ -61,7 +71,10 @@ pub async fn handler(
         global_authority.clone(),
         state.elgamal_keypair.clone(),
         Some(mint_keypair.clone()),
-        Some(payload.decimals),
+        Some(decimals),
+        name,
+        symbol,
+        uri,
     )
     .await?;
 
