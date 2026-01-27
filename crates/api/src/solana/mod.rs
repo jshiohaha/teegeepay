@@ -9,6 +9,7 @@ pub mod transaction;
 pub mod transfer;
 pub mod utils;
 pub mod withdraw;
+pub mod zk;
 
 use solana_instruction::Instruction;
 use solana_signer::Signer;

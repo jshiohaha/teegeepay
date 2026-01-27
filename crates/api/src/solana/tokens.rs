@@ -9,6 +9,7 @@ use spl_token_2022::{
     error::TokenError,
     extension::{
         BaseStateWithExtensions, ExtensionType, StateWithExtensionsOwned,
+        confidential_mint_burn::ConfidentialMintBurn,
         confidential_transfer::{
             ConfidentialTransferAccount, ConfidentialTransferMint,
             instruction::{PubkeyValidityProofData, configure_account},
@@ -32,6 +33,15 @@ pub async fn is_confidential_mint_enabled(
     Ok(mint_state
         .get_extension::<ConfidentialTransferMint>()
         .is_ok())
+}
+
+pub async fn is_confidential_mintburn_enabled(
+    rpc_client: Arc<RpcClient>,
+    mint: &Pubkey,
+) -> Result<bool> {
+    let mint_account = rpc_client.get_account(mint).await?;
+    let mint_state = StateWithExtensionsOwned::<Mint>::unpack(mint_account.data)?;
+    Ok(mint_state.get_extension::<ConfidentialMintBurn>().is_ok())
 }
 
 #[allow(dead_code)]

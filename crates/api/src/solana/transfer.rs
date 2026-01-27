@@ -16,10 +16,7 @@ use spl_token_2022::{
     },
     solana_zk_sdk::{
         encryption::{elgamal, pod::elgamal::PodElGamalPubkey},
-        zk_elgamal_proof_program::{
-            self,
-            instruction::{ContextStateInfo, close_context_state},
-        },
+        zk_elgamal_proof_program::instruction::{ContextStateInfo, close_context_state},
     },
     state::{Account, Mint},
 };
@@ -34,6 +31,7 @@ use tracing::info;
 use crate::solana::balance::{apply_pending_balance, get_confidential_balances};
 use crate::solana::deposit::deposit_tokens;
 use crate::solana::signature_signer::ConfidentialKeys;
+use crate::solana::zk::get_zk_proof_context_state_account_creation_instructions;
 use crate::{handlers::AppError, solana::utils::confidential_keys_for_mint};
 
 struct TransferContext {
@@ -525,44 +523,4 @@ async fn prepare_proof_transactions(
         &sender_confidential_keys,
     )
     .await
-}
-
-async fn get_zk_proof_context_state_account_creation_instructions<
-    ZK: bytemuck::Pod + zk_elgamal_proof_program::proof_data::ZkProofData<U>,
-    U: bytemuck::Pod,
->(
-    rpc_client: Arc<RpcClient>,
-    fee_payer_pubkey: &Pubkey,
-    context_state_account_pubkey: &Pubkey,
-    context_state_authority_pubkey: &Pubkey,
-    proof_data: &ZK,
-) -> Result<(Instruction, Instruction)> {
-    use spl_token_confidential_transfer_proof_extraction::instruction::zk_proof_type_to_instruction;
-    use std::mem::size_of;
-
-    let space = size_of::<zk_elgamal_proof_program::state::ProofContextState<U>>();
-    let rent = rpc_client
-        .get_minimum_balance_for_rent_exemption(space)
-        .await
-        .map_err(|_| anyhow::anyhow!("Failed to get minimum balance for rent exemption"))?;
-
-    let context_state_info = ContextStateInfo {
-        context_state_account: context_state_account_pubkey,
-        context_state_authority: context_state_authority_pubkey,
-    };
-
-    let instruction_type = zk_proof_type_to_instruction(ZK::PROOF_TYPE)?;
-
-    let create_account_ix = solana_system_interface::instruction::create_account(
-        fee_payer_pubkey,
-        context_state_account_pubkey,
-        rent,
-        space as u64,
-        &zk_elgamal_proof_program::id(),
-    );
-
-    let verify_proof_ix =
-        instruction_type.encode_verify_proof(Some(context_state_info), proof_data);
-
-    Ok((create_account_ix, verify_proof_ix))
 }

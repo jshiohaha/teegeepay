@@ -6,8 +6,12 @@ use {
     solana_signer::Signer,
     solana_system_interface::instruction::{create_account, transfer},
     spl_token_2022::{
-        extension::ExtensionType, instruction::initialize_mint,
-        solana_zk_sdk::encryption::elgamal::ElGamalKeypair, state::Mint,
+        extension::{ExtensionType, confidential_mint_burn},
+        instruction::initialize_mint,
+        solana_zk_sdk::encryption::{
+            auth_encryption::AeKey, elgamal::ElGamalKeypair, pod::elgamal::PodElGamalPubkey,
+        },
+        state::Mint,
     },
     spl_token_client::token::ExtensionInitializationParams,
     spl_token_metadata_interface::state::TokenMetadata,
@@ -20,6 +24,7 @@ pub async fn create_mint(
     // mint and freeze authority are the same for now
     absolute_authority: Arc<Keypair>,
     auditor_elgamal_keypair: Arc<ElGamalKeypair>,
+    supply_aes_key: Arc<AeKey>,
     mint: Option<Arc<Keypair>>,
     decimals: Option<u8>,
     name: String,
@@ -59,6 +64,7 @@ pub async fn create_mint(
     // Calculate the space required for the mint account with the extensions
     let base_space = ExtensionType::try_calculate_account_len::<Mint>(&[
         ExtensionType::ConfidentialTransferMint,
+        ExtensionType::ConfidentialMintBurn,
         ExtensionType::MetadataPointer,
     ])?;
     let final_space = base_space
@@ -95,6 +101,16 @@ pub async fn create_mint(
     let confidential_transfer_instruction =
         confidential_transfer_mint_extension.instruction(&spl_token_2022::id(), &mint.pubkey())?;
 
+    let pod_auditor_elgamal_keypair: PodElGamalPubkey =
+        auditor_elgamal_keypair.pubkey_owned().into();
+    let decryptable_supply_ciphertext = supply_aes_key.encrypt(0).into();
+    let extension_mintburn_init_instruction = confidential_mint_burn::instruction::initialize_mint(
+        &spl_token_2022::id(),
+        &mint.pubkey(),
+        &pod_auditor_elgamal_keypair,
+        &decryptable_supply_ciphertext,
+    )?;
+
     let metadata_pointer_extension = ExtensionInitializationParams::MetadataPointer {
         authority: Some(mint_authority.pubkey()),
         metadata_address: Some(mint.pubkey()),
@@ -105,65 +121,9 @@ pub async fn create_mint(
     let mut instructions = vec![
         create_account_instruction,
         confidential_transfer_instruction,
+        extension_mintburn_init_instruction,
         metadata_pointer_instruction,
     ];
-
-    // let recent_blockhash = rpc_client
-    //     .get_latest_blockhash()
-    //     .await
-    //     .map_err(|e| anyhow::anyhow!("Failed to get latest blockhash: {}", e))?;
-    // let transaction = Transaction::new_signed_with_payer(
-    //     &instructions,
-    //     Some(&fee_payer.pubkey()),
-    //     &[&fee_payer, &mint as &dyn Signer],
-    //     recent_blockhash,
-    // );
-
-    // {
-    //     // Add `initialize_mint_instruction` to the signed transaction
-
-    //     // let mut transaction = transaction;
-
-    //     // Initialize the mint account
-    //     //TODO: Use program-2022/src/extension/confidential_transfer/instruction/initialize_mint()
-    //     let initialize_mint_instruction = initialize_mint(
-    //         &spl_token_2022::id(),
-    //         &mint.pubkey(),
-    //         &mint_authority.pubkey(),
-    //         Some(&freeze_authority.pubkey()),
-    //         decimals,
-    //     )?;
-
-    //     instructions.push(initialize_mint_instruction);
-
-    //     // {
-    //     //     let mut unique_pubkeys: std::collections::HashSet<_> =
-    //     //         transaction.message.account_keys.iter().cloned().collect();
-    //     //     transaction.message.account_keys.extend(
-    //     //         initialize_mint_instruction
-    //     //             .accounts
-    //     //             .iter()
-    //     //             .map(|account| account.pubkey)
-    //     //             .filter(|pubkey| unique_pubkeys.insert(*pubkey)),
-    //     //     );
-    //     // }
-
-    //     // let compiled_initialize_mint_instruction = transaction
-    //     //     .message
-    //     //     .compile_instruction(&initialize_mint_instruction);
-
-    //     // transaction
-    //     //     .message
-    //     //     .instructions
-    //     //     .push(compiled_initialize_mint_instruction);
-
-    //     // transaction.sign(&[&fee_payer, &mint as &dyn Signer], recent_blockhash);
-
-    //     // let transaction_signature = rpc_client
-    //     //     .send_and_confirm_transaction(&transaction)
-    //     //     .await
-    //     //     .map_err(|e| anyhow::anyhow!("Failed to send and confirm transaction: {}", e))?;
-    // }
 
     // Initialize the mint account
     //TODO: Use program-2022/src/extension/confidential_transfer/instruction/initialize_mint()

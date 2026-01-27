@@ -11,7 +11,7 @@ use anyhow::Result;
 use solana_client::{nonblocking::rpc_client::RpcClient, rpc_config::CommitmentConfig};
 use solana_keypair::Keypair;
 use solana_signer::Signer;
-use spl_token_2022::solana_zk_sdk::encryption::elgamal::ElGamalKeypair;
+use spl_token_2022::solana_zk_sdk::encryption::{auth_encryption::AeKey, elgamal::ElGamalKeypair};
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
 use tracing::info;
@@ -22,6 +22,7 @@ pub struct AppState {
     pub dev_mode: bool,
     pub rpc_client: Arc<RpcClient>,
     pub elgamal_keypair: Arc<ElGamalKeypair>,
+    pub supply_aes_key: Arc<AeKey>,
     pub global_authority: Arc<Keypair>,
     pub telegram_bot_token: String,
     pub jwt_secret: String,
@@ -78,6 +79,8 @@ async fn main() -> Result<()> {
     let auditor_kp = solana::utils::kp_from_base58_string(&auditor_kp);
     let elgamal_keypair = solana::utils::el_gamal_deterministic(&auditor_kp)
         .map_err(|e| anyhow::anyhow!("Failed to create ElGamal keypair: {}", e))?;
+    let supply_aes_key = solana::utils::ae_key_deterministic(&auditor_kp)
+        .map_err(|e| anyhow::anyhow!("Failed to derive supply AE key: {}", e))?;
 
     let authority_kp = std::env::var("AUTHORITY_KP").expect("AUTHORITY_KP must be set");
     let global_authority = solana::utils::kp_from_base58_string(&authority_kp);
@@ -100,6 +103,7 @@ async fn main() -> Result<()> {
         db: pool,
         rpc_client: rpc_client.clone(),
         elgamal_keypair: Arc::new(elgamal_keypair),
+        supply_aes_key: Arc::new(supply_aes_key),
         global_authority: Arc::new(global_authority),
         telegram_bot_token,
         jwt_secret,

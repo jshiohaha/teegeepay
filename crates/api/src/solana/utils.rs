@@ -5,7 +5,7 @@ use solana_keypair::{Keypair, Signature};
 use solana_pubkey::Pubkey;
 use solana_signer::Signer;
 use spl_associated_token_account::get_associated_token_address_with_program_id;
-use spl_token_2022::solana_zk_sdk::encryption::elgamal::ElGamalKeypair;
+use spl_token_2022::solana_zk_sdk::encryption::{auth_encryption::AeKey, elgamal::ElGamalKeypair};
 
 use crate::solana::signature_signer::{ConfidentialKeys, SignatureKeyDerivation};
 
@@ -17,6 +17,12 @@ pub fn el_gamal_deterministic(kp: &dyn Signer) -> Result<ElGamalKeypair> {
     let message = b"global_auditor";
     ElGamalKeypair::new_from_signer(kp, message)
         .map_err(|e| anyhow::anyhow!("Failed to create ElGamal keypair: {}", e))
+}
+
+pub fn ae_key_deterministic(kp: &dyn Signer) -> Result<AeKey> {
+    let message = b"global_auditor_aes";
+    AeKey::new_from_signer(kp, message)
+        .map_err(|e| anyhow::anyhow!("Failed to derive AE key: {}", e))
 }
 
 /// Derive confidential keys for a given mint and owner.

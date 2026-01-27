@@ -70,6 +70,7 @@ pub async fn handler(
         global_authority.clone(),
         global_authority.clone(),
         state.elgamal_keypair.clone(),
+        state.supply_aes_key.clone(),
         Some(mint_keypair.clone()),
         Some(decimals),
         name,
