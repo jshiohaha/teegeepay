@@ -7,7 +7,7 @@ curl -X POST $API_BASE_URL/api/tokens \
 -d "{
     \"name\": \"TeeGee USD\",
     \"symbol\": \"tgUSD\",
-    \"uri\": \"https://arweave.net/nFo9Nwcam4ek0SwtKQchYD47T9dkTpGqL62CgcXSjZE\",
+    \"uri\": \"$METADATA_URL\",
     \"decimals\": 9,
     \"mintKeypair\": \"${MINT_KP}\"
 }"

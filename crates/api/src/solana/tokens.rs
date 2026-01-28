@@ -35,6 +35,7 @@ pub async fn is_confidential_mint_enabled(
         .is_ok())
 }
 
+#[allow(dead_code)]
 pub async fn is_confidential_mintburn_enabled(
     rpc_client: Arc<RpcClient>,
     mint: &Pubkey,
