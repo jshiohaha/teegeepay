@@ -15,6 +15,7 @@ A Telegram mini app enabling confidential transfers over Telegram, built on SPL 
 - Enable frictionless confidential transfers to a Solana address or other Telegram users
 - Quickly check public and private balances and compare against explorer data
 - Non-custodial keypairs stored in AWS KMS using Ed25519
+- Perform mint, transfer, and check blalance on an SPL token the following extensions: confidential transfer, confidential mint burn, metadata pointer, and token metadata
 
 ## Architecture
 
