@@ -14,8 +14,12 @@ A Telegram mini app enabling confidential transfers over Telegram, built on SPL 
 - Use the features of Token2022 confidential transfers: deposit, withdraw, transfer
 - Enable frictionless confidential transfers to a Solana address or other Telegram users
 - Quickly check public and private balances and compare against explorer data
-- Non-custodial keypairs stored in AWS KMS using Ed25519
+- Non-custodial keypairs stored in a database, extensible to other solutions — AWS KMS, MPC solutions, etc
 - Perform mint, transfer, and check blalance on an SPL token the following extensions: confidential transfer, confidential mint burn, metadata pointer, and token metadata
+
+## Future Development
+
+<TODO>
 
 ## Architecture
 
@@ -151,6 +155,14 @@ The `scripts/` directory contains helpful utilities mostly for local setup/testi
 - Wallets are stored on the backend, which is **not secure** for production
 - Requires a Solana cluster with SPL Token-2022 and confidential transfer support
 - For production use, implement proper key management and custody solutions
+
+## Acknowledgements
+
+- The [Confidential-Balances-Sample](https://github.com/solana-developers/Confidential-Balances-Sample) cookbook is extremely helpful for understanding how to work with the confidential transfer extension.
+- The [token-2022](https://github.com/solana-program/token-2022/tree/main) repository is a great source-of-truth for reading through state and instructions.
+- Breakdown of what [confidential transfers](https://solana.com/docs/tokens/extensions/confidential-transfer) are and how they work
+- Confidential balances [overview](https://www.solana-program.com/docs/confidential-balances), including protocol overview, encryption, and zero-knowledge proofs.
+- 🌊 [Surfpool](https://www.surfpool.run) being the best way to test locally, no questions asked
 
 ## License
 
