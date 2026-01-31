@@ -28,11 +28,14 @@ use spl_token_confidential_transfer_proof_generation::transfer::TransferProofDat
 use std::sync::Arc;
 use tracing::info;
 
-use crate::solana::balance::{apply_pending_balance, get_confidential_balances};
 use crate::solana::deposit::deposit_tokens;
 use crate::solana::signature_signer::ConfidentialKeys;
 use crate::solana::zk::get_zk_proof_context_state_account_creation_instructions;
 use crate::{handlers::AppError, solana::utils::confidential_keys_for_mint};
+use crate::{
+    kms::KmsKeypair,
+    solana::balance::{apply_pending_balance, get_confidential_balances},
+};
 
 struct TransferContext {
     equality_proof_pubkey: Pubkey,
@@ -142,7 +145,7 @@ async fn ensure_confidential_balance(
 
 pub async fn with_split_proofs(
     rpc_client: Arc<RpcClient>,
-    sender: Arc<Keypair>,
+    sender: Arc<dyn Signer + Send + Sync>,
     recipient: &Pubkey,
     confidential_transfer_amount: u64,
     mint: &Pubkey,
@@ -212,10 +215,11 @@ pub async fn with_split_proofs(
     })?;
 
     let close_ixs = build_close_proof_accounts_ixs(rpc_client.clone(), sender.clone(), &ctx)?;
+    let close_tx_signers: [&dyn Signer; 1] = [sender.as_ref()];
     let close_tx = Transaction::new_signed_with_payer(
         &close_ixs,
         Some(&sender.pubkey()),
-        &[&sender],
+        &close_tx_signers,
         rpc_client.clone().get_latest_blockhash().await?,
     );
     let signature_4 = rpc_client
@@ -270,7 +274,7 @@ async fn execute_transfer(
             &ctx.sender_confidential_keys.ae_key,
             &ctx.recipient_elgamal_pubkey,
             Some(&ctx.auditor_elgamal_pubkey),
-            &[&sender],
+            &[sender.as_ref()],
         )
         .await?;
 
@@ -459,7 +463,7 @@ async fn prepare_proof_transactions_with_keys(
         ],
         Some(&sender.pubkey()),
         &[
-            &sender,
+            sender.as_ref(),
             &range_proof_context_state_account as &dyn Signer,
             &equality_proof_context_state_account as &dyn Signer,
             &ciphertext_validity_proof_context_state_account as &dyn Signer,
@@ -470,14 +474,14 @@ async fn prepare_proof_transactions_with_keys(
     let tx2 = Transaction::new_signed_with_payer(
         &[range_verify_ix],
         Some(&sender.pubkey()),
-        &[&sender],
+        &[sender.as_ref()],
         rpc_client.get_latest_blockhash().await?,
     );
 
     let tx3 = Transaction::new_signed_with_payer(
         &[equality_verify_ix, cv_verify_ix],
         Some(&sender.pubkey()),
-        &[&sender],
+        &[sender.as_ref()],
         rpc_client.get_latest_blockhash().await?,
     );
 

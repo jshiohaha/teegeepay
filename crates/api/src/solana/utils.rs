@@ -7,7 +7,10 @@ use solana_signer::Signer;
 use spl_associated_token_account::get_associated_token_address_with_program_id;
 use spl_token_2022::solana_zk_sdk::encryption::{auth_encryption::AeKey, elgamal::ElGamalKeypair};
 
-use crate::solana::signature_signer::{ConfidentialKeys, SignatureKeyDerivation};
+use crate::{
+    kms::KmsKeypair,
+    solana::signature_signer::{ConfidentialKeys, SignatureKeyDerivation},
+};
 
 pub fn kp_from_base58_string(kp: &str) -> Keypair {
     Keypair::from_base58_string(kp)
@@ -45,6 +48,8 @@ pub fn ae_key_deterministic(kp: &dyn Signer) -> Result<AeKey> {
 /// let signature = owner.sign_message(&ata.to_bytes());
 /// let confidential_keys = confidential_keys_for_mint(owner, mint)?;
 /// ```
+///
+/// TODO: change to async?
 pub fn confidential_keys_for_mint(
     owner: Arc<dyn Signer + Send + Sync>,
     mint: &Pubkey,
@@ -53,7 +58,7 @@ pub fn confidential_keys_for_mint(
     let ata =
         get_associated_token_address_with_program_id(&owner_pubkey, &mint, &spl_token_2022::id());
 
-    let signature = owner.sign_message(&ata.to_bytes());
+    let signature = owner.try_sign_message(&ata.to_bytes())?;
     let signature_bytes: [u8; 64] = signature.into();
 
     let key_derivation = SignatureKeyDerivation::new(owner_pubkey, signature_bytes.to_vec());

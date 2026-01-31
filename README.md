@@ -16,7 +16,7 @@ This project started during the [2026 Solana Privacy Hackathon](https://solana.c
 -   Use the features of Token2022 confidential transfers: deposit, withdraw, transfer
 -   Enable frictionless confidential transfers to a Solana address or other Telegram users
 -   Quickly check public and private balances and compare against explorer data
--   Custodial keypairs stored in a database, extensible to other solutions — AWS KMS, MPC solutions, etc
+-   Custodial keypairs managed via AWS KMS, extensible to other solutions (e.g. MPC solutions)
 -   Perform mint, transfer, and check blalance on an SPL token the following extensions: confidential transfer, confidential mint burn, metadata pointer, and token metadata
 
 ## Future Development

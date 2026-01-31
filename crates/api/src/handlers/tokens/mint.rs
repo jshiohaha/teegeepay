@@ -1,3 +1,4 @@
+use crate::kms::{KmsKeypair, KmsKeypairIdentifier};
 use crate::solana;
 use crate::solana::tokens::setup_token_account_with_keys;
 use crate::solana::utils::confidential_keys_for_mint;
@@ -70,7 +71,13 @@ pub async fn handler(
     );
 
     // Validate recipient wallet
-    let ata_authority: Arc<Keypair> = validate_recipient_wallet(&state.db, &path.address).await?;
+    let ata_authority: KmsKeypairIdentifier =
+        validate_recipient_wallet(&state.db, &path.address).await?;
+    let ata_authority = Arc::new(KmsKeypair::new(
+        &state.kms_client,
+        ata_authority.key_id,
+        ata_authority.pubkey,
+    ));
 
     // Prepare confidential keys and parameters
     let confidential_keys = confidential_keys_for_mint(ata_authority.clone(), &payload.mint)?;
@@ -139,7 +146,10 @@ fn scale_decimal_amount(amount: f64) -> u64 {
     (amount * DECIMAL_MULTIPLIER) as u64
 }
 
-async fn validate_recipient_wallet(db: &sqlx::PgPool, address: &Pubkey) -> Result<Arc<Keypair>> {
+async fn validate_recipient_wallet(
+    db: &sqlx::PgPool,
+    address: &Pubkey,
+) -> Result<KmsKeypairIdentifier> {
     let wallet = db::get_wallet_by_pubkey(db, address)
         .await?
         .ok_or_else(|| AppError::not_found(anyhow::anyhow!("Recipient wallet not found")))?;
@@ -150,7 +160,10 @@ async fn validate_recipient_wallet(db: &sqlx::PgPool, address: &Pubkey) -> Resul
         ));
     }
 
-    Ok(wallet.keypair)
+    Ok(KmsKeypairIdentifier {
+        key_id: wallet.kms_key_id,
+        pubkey: wallet.pubkey,
+    })
 }
 
 /// Sends a transaction and confirms it, with consistent error handling.
@@ -197,13 +210,12 @@ async fn execute_token_account_setup(
     if is_confidential {
         info!("Setting up confidential token account for mint={:?}", mint);
 
-        let signers = vec![ata_authority.clone()];
         let transaction = build_transaction(
             state.rpc_client.clone(),
             None,
             setup_instructions.instructions,
-            global_authority.clone(),
-            signers,
+            global_authority.clone() as Arc<dyn Signer + Send + Sync>,
+            vec![ata_authority.clone() as Arc<dyn Signer + Send + Sync>],
         )
         .await?;
 

@@ -3,6 +3,7 @@ use crate::auth::AuthUser;
 use crate::db;
 use crate::handlers::wallets::deposit::TransactionResult;
 use crate::handlers::{ApiResponse, AppError};
+use crate::kms;
 use crate::solana;
 use crate::solana::airdrop::request_airdrop_and_confirm;
 use crate::solana::tokens::setup_token_account_with_keys;
@@ -14,7 +15,7 @@ use axum::{Json, extract::State};
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as};
 use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_keypair::{Keypair, Signature};
+use solana_keypair::Signature;
 use solana_pubkey::Pubkey;
 use solana_signer::Signer;
 use spl_token_2022::extension::ExtensionType;
@@ -22,6 +23,7 @@ use spl_token_2022::{extension::StateWithExtensionsOwned, state::Mint};
 use std::sync::Arc;
 use tokio::task;
 use tracing::{error, info};
+use uuid::Uuid;
 
 const TRANSFER_TRANSACTION_LABELS: [&str; 5] = [
     "Create Proof Accounts",
@@ -85,15 +87,22 @@ pub async fn handler(
         .await
         .map_err(AppError::from)?;
 
-    let transfer_context =
-        prepare_recipient_transfer_context(&state, &payload, &recipient_info.wallet)
-            .await
-            .map_err(AppError::from)?;
+    let recipient_signer: Arc<dyn Signer + Send + Sync> =
+        Arc::new(recipient_info.wallet.signer(&state.kms_client));
+    let transfer_context = prepare_recipient_transfer_context(
+        &state,
+        &payload,
+        &recipient_info.wallet,
+        recipient_signer.clone(),
+    )
+    .await
+    .map_err(AppError::from)?;
 
-    let sender_kp = sender_wallet.keypair.clone();
+    let sender_kp: Arc<dyn Signer + Send + Sync> =
+        Arc::new(sender_wallet.signer(&state.kms_client));
     let transfer_signatures = execute_transfer(
         state.rpc_client.clone(),
-        sender_kp,
+        sender_kp.clone(),
         &transfer_context.recipient_pubkey,
         payload.amount,
         payload.mint,
@@ -164,12 +173,28 @@ async fn get_or_create_recipient_wallet(
         "creating new reserved wallet for username: {}",
         telegram_username
     );
-    let keypair = Keypair::new();
-    let wallet = db::get_or_create_wallet_for_username(&state.db, telegram_username, &keypair)
+    let kms_alias = format!(
+        "cypherpay/reserved/{}-{}",
+        telegram_username,
+        Uuid::new_v4()
+    );
+    let kms_key_id = kms::create_kms_ed25519_key(&state.kms_client, &kms_alias)
+        .await
+        .map_err(|e| anyhow::anyhow!("failed to create recipient KMS key: {}", e))?;
+    let pubkey = kms::solana_pubkey_from_kms(&state.kms_client, &kms_key_id)
+        .await
+        .map_err(|e| anyhow::anyhow!("failed to derive recipient pubkey: {}", e))?;
+    db::create_reserved_wallet_for_username(&state.db, telegram_username, &pubkey, &kms_key_id)
         .await
         .map_err(|e| {
             error!("failed to create reserved wallet: {}", e);
             anyhow::anyhow!("failed to create wallet for recipient: {}", e)
+        })?;
+
+    let wallet = db::get_wallet_by_telegram_username(&state.db, telegram_username)
+        .await?
+        .ok_or_else(|| {
+            anyhow::anyhow!("failed to fetch reserved wallet for {}", telegram_username)
         })?;
 
     request_airdrop_and_confirm(state.rpc_client.clone(), &wallet.pubkey, 1 * 10_u64.pow(9))
@@ -186,9 +211,9 @@ async fn prepare_recipient_transfer_context(
     state: &AppState,
     payload: &TelegramTransferRequest,
     recipient_wallet: &crate::models::Wallet,
+    recipient_signer: Arc<dyn Signer + Send + Sync>,
 ) -> Result<TransferContext, AppError> {
     let recipient_pubkey = recipient_wallet.pubkey;
-    let recipient_keypair = recipient_wallet.keypair.clone();
     info!(
         "transfer: telegram username: {}, recipient pubkey: {}",
         payload.telegram_username, recipient_pubkey
@@ -198,7 +223,7 @@ async fn prepare_recipient_transfer_context(
         state,
         &recipient_pubkey,
         payload.mint,
-        &recipient_keypair,
+        recipient_signer.clone(),
     )
     .await?;
     let mint_decimals = get_mint_decimals(state, payload.mint).await?;
@@ -213,7 +238,7 @@ async fn ensure_recipient_confidential_account(
     state: &AppState,
     recipient_pubkey: &Pubkey,
     mint: Pubkey,
-    recipient_keypair: &Arc<Keypair>,
+    recipient_signer: Arc<dyn Signer + Send + Sync>,
 ) -> Result<(), AppError> {
     let requires_recipient_setup = {
         let (_, maybe_recipient_ata_account) =
@@ -236,8 +261,8 @@ async fn ensure_recipient_confidential_account(
     }
 
     let confidential_keys =
-        confidential_keys_for_mint(recipient_keypair.clone(), &mint).map_err(|e| {
-            error!("fFailed to derive confidential keys: {}", e);
+        confidential_keys_for_mint(recipient_signer.clone(), &mint).map_err(|e| {
+            error!("failed to derive confidential keys: {}", e);
             AppError::internal_server_error(anyhow::anyhow!(
                 "Failed to derive confidential keys: {}",
                 e
@@ -263,8 +288,7 @@ async fn ensure_recipient_confidential_account(
         return Ok(());
     }
 
-    let mut additional_signers: Vec<Arc<dyn Signer + Send + Sync>> =
-        vec![recipient_keypair.clone()];
+    let mut additional_signers: Vec<Arc<dyn Signer + Send + Sync>> = vec![recipient_signer.clone()];
     additional_signers.extend(setup_instructions.additional_signers);
 
     let transaction = build_transaction(
@@ -308,7 +332,7 @@ async fn get_mint_decimals(state: &AppState, mint: Pubkey) -> Result<u8, AppErro
 
 async fn execute_transfer(
     rpc_client: Arc<RpcClient>,
-    sender_kp: Arc<Keypair>,
+    sender_kp: Arc<dyn Signer + Send + Sync>,
     recipient_pubkey: &Pubkey,
     amount: u64,
     mint: Pubkey,

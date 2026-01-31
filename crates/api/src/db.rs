@@ -2,25 +2,23 @@ use crate::models::Wallet;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use solana_keypair::Keypair;
 use solana_pubkey::Pubkey;
-use solana_signer::Signer;
 use sqlx::{PgConnection, PgPool, prelude::FromRow};
-use std::{str::FromStr, sync::Arc};
+use std::str::FromStr;
 use tracing::{debug, error, info};
 
 pub async fn create_wallet(
     tx: &mut PgConnection,
     user_id: i64,
     pubkey: &Pubkey,
-    keypair: &Keypair,
+    kms_key_id: &str,
 ) -> Result<i64> {
     let wallet_id = sqlx::query_scalar::<_, i64>(
         r#"
         INSERT INTO wallets (
             user_id,
             pubkey,
-            keypair,
+            kms_key_id,
             created_at,
             updated_at
         )
@@ -30,7 +28,7 @@ pub async fn create_wallet(
     )
     .bind(user_id)
     .bind(pubkey.to_string())
-    .bind(keypair.to_base58_string())
+    .bind(kms_key_id)
     .fetch_one(tx.as_mut())
     .await?;
 
@@ -88,6 +86,7 @@ pub async fn get_user_by_user_id(pool: &PgPool, user_id: &str) -> Result<Option<
 
 /// Result of upserting a telegram user, includes whether a reserved wallet was claimed.
 pub struct UpsertTelegramUserResult {
+    #[allow(dead_code)]
     pub user: TelegramUserRow,
     pub claimed_reserved_wallet: bool,
 }
@@ -193,7 +192,7 @@ pub async fn create_wallet_for_telegram_user(
     pool: &PgPool,
     telegram_user_id: i64,
     pubkey: &Pubkey,
-    keypair: &Keypair,
+    kms_key_id: &str,
 ) -> Result<i64> {
     let user_id_str = format!("tg:{}", telegram_user_id);
     info!(
@@ -211,7 +210,7 @@ pub async fn create_wallet_for_telegram_user(
                 updated_at = NOW()
             RETURNING id
         )
-        INSERT INTO wallets (user_id, pubkey, keypair, created_at, updated_at)
+        INSERT INTO wallets (user_id, pubkey, kms_key_id, created_at, updated_at)
         SELECT upsert_user.id, $3, $4, NOW(), NOW()
         FROM upsert_user
         RETURNING id
@@ -220,7 +219,7 @@ pub async fn create_wallet_for_telegram_user(
     .bind(&user_id_str)
     .bind(telegram_user_id)
     .bind(pubkey.to_string())
-    .bind(keypair.to_base58_string())
+    .bind(kms_key_id)
     .fetch_one(pool)
     .await
     .map_err(|e| {
@@ -240,12 +239,12 @@ pub async fn create_user_and_wallet(
     pool: PgPool,
     external_user_id: &str,
     pubkey: &Pubkey,
-    keypair: &Keypair,
+    kms_key_id: &str,
 ) -> Result<(i64, i64)> {
     let mut tx = pool.begin().await?;
 
     let user_id = create_user(&mut *tx, external_user_id).await?;
-    let wallet_id = create_wallet(&mut *tx, user_id, pubkey, keypair).await?;
+    let wallet_id = create_wallet(&mut *tx, user_id, pubkey, kms_key_id).await?;
 
     tx.commit().await?;
 
@@ -257,7 +256,7 @@ pub struct WalletRow {
     pub id: i64,
     pub user_id: i64,
     pub pubkey: String,
-    pub keypair: String,
+    pub kms_key_id: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -271,7 +270,7 @@ impl TryFrom<WalletRow> for Wallet {
             user_id: wallet.user_id,
             pubkey: Pubkey::from_str(&wallet.pubkey)
                 .map_err(|e| anyhow::anyhow!("Failed to parse pubkey: {}", e))?,
-            keypair: Arc::new(Keypair::from_base58_string(&wallet.keypair)),
+            kms_key_id: wallet.kms_key_id,
             created_at: wallet.created_at,
             updated_at: wallet.updated_at,
         })
@@ -435,7 +434,7 @@ pub async fn create_reserved_wallet_for_username(
     pool: &PgPool,
     username: &str,
     pubkey: &Pubkey,
-    keypair: &Keypair,
+    kms_key_id: &str,
 ) -> Result<i64> {
     // Use a placeholder user_id that indicates this is a reserved/unclaimed account
     let user_id_str = format!("tg:reserved:{}", username.to_lowercase());
@@ -451,7 +450,7 @@ pub async fn create_reserved_wallet_for_username(
             VALUES ($1, $2, NOW(), NOW())
             RETURNING id
         )
-        INSERT INTO wallets (user_id, pubkey, keypair, created_at, updated_at)
+        INSERT INTO wallets (user_id, pubkey, kms_key_id, created_at, updated_at)
         SELECT insert_user.id, $3, $4, NOW(), NOW()
         FROM insert_user
         RETURNING id
@@ -460,7 +459,7 @@ pub async fn create_reserved_wallet_for_username(
     .bind(&user_id_str)
     .bind(username)
     .bind(pubkey.to_string())
-    .bind(keypair.to_base58_string())
+    .bind(kms_key_id)
     .fetch_one(pool)
     .await
     .map_err(|e| {
@@ -480,18 +479,19 @@ pub async fn create_reserved_wallet_for_username(
 
 /// Get or create a wallet for a telegram username.
 /// If the user already has a wallet, returns it. Otherwise creates a reserved wallet.
+#[allow(dead_code)]
 pub async fn get_or_create_wallet_for_username(
     pool: &PgPool,
     username: &str,
-    keypair: &Keypair,
+    pubkey: &Pubkey,
+    kms_key_id: &str,
 ) -> Result<Wallet> {
     if let Some(wallet) = get_wallet_by_telegram_username(pool, username).await? {
         info!("found existing wallet for telegram username: {}", username);
         return Ok(wallet);
     }
 
-    let pubkey = keypair.pubkey();
-    create_reserved_wallet_for_username(pool, username, &pubkey, keypair).await?;
+    create_reserved_wallet_for_username(pool, username, pubkey, kms_key_id).await?;
 
     get_wallet_by_telegram_username(pool, username)
         .await?

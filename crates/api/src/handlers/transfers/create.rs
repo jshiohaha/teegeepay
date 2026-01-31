@@ -118,8 +118,9 @@ pub async fn handler(
         return Err(AppError::not_found(anyhow::anyhow!("Wallet not found")));
     };
 
-    // TODO: how to handle when the user wants to sign on the client? can we avoid 1000000 signatures?
-    let sender_kp = wallet.keypair.clone();
+    // TODO: how to handle when the user needs to sign on the client?
+    let sender_kp: Arc<dyn solana_signer::Signer + Send + Sync> =
+        Arc::new(wallet.signer(&state.kms_client));
     let recipient = payload.recipient;
     let mint = payload.mint;
     let amount = payload.amount;
@@ -129,7 +130,7 @@ pub async fn handler(
         let handle = tokio::runtime::Handle::current();
         handle.block_on(with_split_proofs(
             state.rpc_client.clone(),
-            sender_kp,
+            sender_kp.clone(),
             &recipient,
             amount,
             &mint,

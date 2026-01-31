@@ -3,16 +3,16 @@ use crate::auth::AuthUser;
 use crate::db;
 use crate::handlers::ApiResponse;
 use crate::handlers::AppError;
+use crate::kms;
 use crate::solana::airdrop::request_airdrop_and_confirm;
 use axum::body::Bytes;
 use axum::extract::State;
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as};
-use solana_keypair::Keypair;
 use solana_pubkey::Pubkey;
-use solana_signer::Signer;
 use std::sync::Arc;
 use tracing::{error, info};
+use uuid::Uuid;
 
 #[serde_as]
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
@@ -36,7 +36,6 @@ pub async fn handler(
     payload: Bytes,
 ) -> Result<ApiResponse<CreateWalletResponse>, AppError> {
     let payload = if payload.is_empty() {
-        info!("no payload, generate new keypair");
         None
     } else {
         Some(
@@ -47,27 +46,54 @@ pub async fn handler(
         )
     };
 
-    let keypair = if let Some(payload) = payload
-        && payload.bytes.is_some()
-    {
-        let bytes = payload.bytes.unwrap_or_default();
-        Keypair::try_from(bytes.as_slice()).map_err(|e| {
-            error!("failed to create keypair from bytes: {}", e);
-            AppError::bad_request(anyhow::anyhow!("failed to create keypair: {}", e))
-        })?
-    } else {
-        info!("generating new keypair");
-        Keypair::new()
-    };
+    if let Some(payload) = payload {
+        if payload.bytes.is_some() {
+            error!("received raw keypair bytes but KMS wallets cannot import keys");
+            return Err(AppError::bad_request(anyhow::anyhow!(
+                "Importing existing keypairs is not supported when using AWS KMS"
+            )));
+        }
+    }
 
-    let pubkey = keypair.pubkey();
+    let kms_alias = format!("cypherpay/wallet/{}", Uuid::new_v4());
+    info!(
+        "creating AWS KMS key with alias: {} for user_id: {}",
+        kms_alias, auth_user.telegram_user_id
+    );
+    let kms_key_id = kms::create_kms_ed25519_key(&state.kms_client, &kms_alias)
+        .await
+        .map_err(|e| {
+            error!("failed to create KMS key: {}", e);
+            AppError::internal_server_error(anyhow::anyhow!(
+                "Failed to create KMS key for wallet: {}",
+                e
+            ))
+        })?;
+    let pubkey = kms::solana_pubkey_from_kms(&state.kms_client, &kms_key_id)
+        .await
+        .map_err(|e| {
+            error!("failed to derive Solana pubkey from KMS: {}", e);
+            AppError::internal_server_error(anyhow::anyhow!(
+                "Failed to derive wallet pubkey from KMS key: {}",
+                e
+            ))
+        })?;
+
+    db::create_wallet_for_telegram_user(
+        &state.db,
+        auth_user.telegram_user_id,
+        &pubkey,
+        &kms_key_id,
+    )
+    .await
+    .map_err(|e| {
+        error!("failed to save wallet to DB: {}", e);
+        AppError::internal_server_error(anyhow::anyhow!("Failed to create wallet: {}", e))
+    })?;
+
     request_airdrop_and_confirm(state.rpc_client.clone(), &pubkey, 1 * 10_u64.pow(9))
         .await
-        .map_err(AppError::from)?;
-
-    db::create_wallet_for_telegram_user(&state.db, auth_user.telegram_user_id, &pubkey, &keypair)
-        .await
-        .map_err(AppError::from)?;
+        .map_err(|e| anyhow::anyhow!("failed to fund wallet: {}", e))?;
 
     Ok(ApiResponse::new(CreateWalletResponse { pubkey }))
 }

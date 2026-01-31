@@ -16,7 +16,10 @@ use spl_token_confidential_transfer_proof_generation::withdraw::WithdrawProofDat
 use std::sync::Arc;
 use tracing::{info, warn};
 
-use crate::solana::{signature_signer::ConfidentialKeys, utils::confidential_keys_for_mint};
+use crate::{
+    kms::KmsKeypair,
+    solana::{signature_signer::ConfidentialKeys, utils::confidential_keys_for_mint},
+};
 
 /// Withdraw tokens using pre-derived confidential keys.
 ///

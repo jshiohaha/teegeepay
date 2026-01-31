@@ -1,6 +1,7 @@
 mod auth;
 mod db;
 mod handlers;
+mod kms;
 mod models;
 mod partial_sign;
 mod routes;
@@ -21,6 +22,7 @@ pub struct AppState {
     pub db: sqlx::PgPool,
     pub dev_mode: bool,
     pub rpc_client: Arc<RpcClient>,
+    pub kms_client: aws_sdk_kms::Client,
     pub elgamal_keypair: Arc<ElGamalKeypair>,
     pub supply_aes_key: Arc<AeKey>,
     pub global_authority: Arc<Keypair>,
@@ -75,6 +77,8 @@ async fn main() -> Result<()> {
         CommitmentConfig::confirmed(),
     ));
 
+    let kms_client = kms::create_kms_client().await;
+
     let auditor_kp = std::env::var("AUDITOR_KP").expect("AUDITOR_KP must be set");
     let auditor_kp = solana::utils::kp_from_base58_string(&auditor_kp);
     let elgamal_keypair = solana::utils::el_gamal_deterministic(&auditor_kp)
@@ -102,6 +106,7 @@ async fn main() -> Result<()> {
             .unwrap_or(false),
         db: pool,
         rpc_client: rpc_client.clone(),
+        kms_client,
         elgamal_keypair: Arc::new(elgamal_keypair),
         supply_aes_key: Arc::new(supply_aes_key),
         global_authority: Arc::new(global_authority),

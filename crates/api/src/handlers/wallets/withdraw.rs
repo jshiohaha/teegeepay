@@ -84,7 +84,7 @@ pub async fn handler(
         )));
     }
 
-    let owner_kp: Arc<dyn Signer + Send + Sync> = Arc::new(wallet.keypair);
+    let owner_kp: Arc<dyn Signer + Send + Sync> = Arc::new(wallet.signer(&state.kms_client));
     let confidential_keys = confidential_keys_for_mint(owner_kp.clone(), &payload.mint)?;
 
     // TODO: do this conditionally?

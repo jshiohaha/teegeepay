@@ -38,6 +38,8 @@ solana-account = { workspace = true }
 solana-hash = { workspace = true }
 solana-program-pack = { workspace = true }
 solana-message = { workspace = true }
+aws-config = { workspace = true }
+aws-sdk-kms = { workspace = true }
 
 bytemuck = "1.20.0"
 bs58 = "0.5.1"

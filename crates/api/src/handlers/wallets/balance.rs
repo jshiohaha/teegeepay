@@ -83,10 +83,11 @@ pub async fn handler(
         )));
     }
 
-    let confidential_keys = confidential_keys_for_mint(Arc::new(wallet.keypair), &params.mint)?;
+    let wallet_signer: Arc<dyn Signer + Send + Sync> = Arc::new(wallet.signer(&state.kms_client));
+    let confidential_keys = confidential_keys_for_mint(wallet_signer.clone(), &params.mint)?;
     let (pending_balance, available_balance) = get_confidential_balances_with_keys(
         state.rpc_client.clone(),
-        &path.address,
+        &wallet_signer.pubkey(),
         &params.mint,
         &confidential_keys,
     )
@@ -140,8 +141,7 @@ pub async fn solana(
         )));
     };
 
-    let pubkey = wallet.keypair.pubkey();
-    if pubkey != path.address {
+    if wallet.pubkey != path.address {
         return Err(AppError::bad_request(anyhow::anyhow!(
             "Wallet address does not match provided address"
         )));
