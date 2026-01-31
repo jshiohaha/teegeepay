@@ -11,7 +11,7 @@ use solana_keypair::{Keypair, Signature};
 use solana_pubkey::Pubkey;
 use solana_signer::Signer;
 use std::sync::Arc;
-use tracing::info;
+use tracing::error;
 
 #[serde_as]
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
@@ -62,8 +62,6 @@ pub async fn handler(
     let mint_keypair = Arc::new(mint_keypair);
     let mint_pubkey = mint_keypair.pubkey();
 
-    info!("New mint: {:?}", mint_pubkey);
-
     let global_authority = state.global_authority.clone();
     let create_mint_instructions = create_mint(
         state.rpc_client.clone(),
@@ -77,9 +75,11 @@ pub async fn handler(
         symbol,
         uri,
     )
-    .await?;
-
-    info!("Build create transaction for mint={:?}", mint_pubkey);
+    .await
+    .map_err(|e| {
+        error!("failed to create mint: {}", e);
+        AppError::internal_server_error(anyhow::anyhow!("Failed to create mint: {}", e))
+    })?;
 
     let transaction = build_transaction(
         state.rpc_client.clone(),
@@ -88,20 +88,23 @@ pub async fn handler(
         global_authority.clone(),
         create_mint_instructions.additional_signers,
     )
-    .await?;
-
-    info!("Sending create transaction for mint={:?}", mint_pubkey);
+    .await
+    .map_err(|e| {
+        error!("failed to build transaction: {}", e);
+        AppError::internal_server_error(anyhow::anyhow!("Failed to build transaction: {}", e))
+    })?;
 
     let transaction_signature = state
         .rpc_client
         .send_and_confirm_transaction(&transaction)
         .await
-        .map_err(|e| anyhow::anyhow!("Failed to send and confirm transaction: {}", e))?;
-
-    info!(
-        "Created create transaction for mint={:?} with signature={:?}",
-        mint_pubkey, transaction_signature
-    );
+        .map_err(|e| {
+            error!("failed to send and confirm transaction: {}", e);
+            AppError::internal_server_error(anyhow::anyhow!(
+                "Failed to send and confirm transaction: {}",
+                e
+            ))
+        })?;
 
     Ok(ApiResponse::new(CreateTokenResponse {
         address: mint_pubkey,

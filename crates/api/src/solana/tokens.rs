@@ -24,25 +24,37 @@ use std::sync::Arc;
 use crate::solana::GeneratedInstructions;
 use crate::solana::signature_signer::ConfidentialKeys;
 
-pub async fn is_confidential_mint_enabled(
+pub async fn get_enabled_confidential_features(
     rpc_client: Arc<RpcClient>,
     mint: &Pubkey,
-) -> Result<bool> {
+) -> Result<Vec<ExtensionType>> {
     let mint_account = rpc_client.get_account(mint).await?;
     let mint_state = StateWithExtensionsOwned::<Mint>::unpack(mint_account.data)?;
+
+    let mut enabled_features = Vec::new();
+    if is_confidential_transfer_mint_enabled(&mint_state)? {
+        enabled_features.push(ExtensionType::ConfidentialTransferMint);
+    }
+
+    if is_confidential_mintburn_enabled(&mint_state)? {
+        enabled_features.push(ExtensionType::ConfidentialMintBurn);
+    }
+
+    Ok(enabled_features)
+}
+
+pub fn is_confidential_mintburn_enabled(
+    mint_state: &StateWithExtensionsOwned<Mint>,
+) -> Result<bool> {
+    Ok(mint_state.get_extension::<ConfidentialMintBurn>().is_ok())
+}
+
+pub fn is_confidential_transfer_mint_enabled(
+    mint_state: &StateWithExtensionsOwned<Mint>,
+) -> Result<bool> {
     Ok(mint_state
         .get_extension::<ConfidentialTransferMint>()
         .is_ok())
-}
-
-#[allow(dead_code)]
-pub async fn is_confidential_mintburn_enabled(
-    rpc_client: Arc<RpcClient>,
-    mint: &Pubkey,
-) -> Result<bool> {
-    let mint_account = rpc_client.get_account(mint).await?;
-    let mint_state = StateWithExtensionsOwned::<Mint>::unpack(mint_account.data)?;
-    Ok(mint_state.get_extension::<ConfidentialMintBurn>().is_ok())
 }
 
 #[allow(dead_code)]

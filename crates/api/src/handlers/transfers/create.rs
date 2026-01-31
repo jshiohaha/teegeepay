@@ -9,6 +9,7 @@ use axum::{Json, extract::State};
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as};
 use solana_pubkey::Pubkey;
+use spl_token_2022::extension::ExtensionType;
 use spl_token_2022::{extension::StateWithExtensionsOwned, state::Mint};
 use std::sync::Arc;
 use tokio::task;
@@ -67,9 +68,10 @@ pub async fn handler(
         )));
     }
 
-    if !solana::tokens::is_confidential_mint_enabled(state.rpc_client.clone(), &payload.mint)
-        .await?
-    {
+    let enabled_confidential_features =
+        solana::tokens::get_enabled_confidential_features(state.rpc_client.clone(), &payload.mint)
+            .await?;
+    if !enabled_confidential_features.contains(&ExtensionType::ConfidentialTransferMint) {
         return Err(AppError::bad_request(anyhow::anyhow!(
             "Mint is not confidential"
         )));
@@ -116,7 +118,7 @@ pub async fn handler(
         return Err(AppError::not_found(anyhow::anyhow!("Wallet not found")));
     };
 
-    // TODO: how to handle when the user needs to sign on the client?
+    // TODO: how to handle when the user wants to sign on the client? can we avoid 1000000 signatures?
     let sender_kp = wallet.keypair.clone();
     let recipient = payload.recipient;
     let mint = payload.mint;

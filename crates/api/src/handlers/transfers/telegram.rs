@@ -4,7 +4,7 @@ use crate::db;
 use crate::handlers::wallets::deposit::TransactionResult;
 use crate::handlers::{ApiResponse, AppError};
 use crate::solana;
-use crate::solana::airdrop::request_and_confirm;
+use crate::solana::airdrop::request_airdrop_and_confirm;
 use crate::solana::tokens::setup_token_account_with_keys;
 use crate::solana::transaction::build_transaction;
 use crate::solana::transfer::with_split_proofs;
@@ -17,6 +17,7 @@ use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_keypair::{Keypair, Signature};
 use solana_pubkey::Pubkey;
 use solana_signer::Signer;
+use spl_token_2022::extension::ExtensionType;
 use spl_token_2022::{extension::StateWithExtensionsOwned, state::Mint};
 use std::sync::Arc;
 use tokio::task;
@@ -135,10 +136,9 @@ async fn validate_sender_wallet(
 }
 
 async fn validate_confidential_mint(state: &AppState, mint: Pubkey) -> Result<(), AppError> {
-    let is_confidential =
-        solana::tokens::is_confidential_mint_enabled(state.rpc_client.clone(), &mint).await?;
-
-    if !is_confidential {
+    let enabled_confidential_features =
+        solana::tokens::get_enabled_confidential_features(state.rpc_client.clone(), &mint).await?;
+    if !enabled_confidential_features.contains(&ExtensionType::ConfidentialTransferMint) {
         return Err(AppError::bad_request(anyhow::anyhow!(
             "Mint is not confidential"
         )));
@@ -172,7 +172,7 @@ async fn get_or_create_recipient_wallet(
             anyhow::anyhow!("failed to create wallet for recipient: {}", e)
         })?;
 
-    request_and_confirm(state.rpc_client.clone(), &wallet.pubkey, 1 * 10_u64.pow(9))
+    request_airdrop_and_confirm(state.rpc_client.clone(), &wallet.pubkey, 1 * 10_u64.pow(9))
         .await
         .map_err(|e| anyhow::anyhow!("failed to fund recipient wallet: {}", e))?;
 
@@ -237,7 +237,7 @@ async fn ensure_recipient_confidential_account(
 
     let confidential_keys =
         confidential_keys_for_mint(recipient_keypair.clone(), &mint).map_err(|e| {
-            error!("[TG_TRANSFER] Failed to derive confidential keys: {}", e);
+            error!("fFailed to derive confidential keys: {}", e);
             AppError::internal_server_error(anyhow::anyhow!(
                 "Failed to derive confidential keys: {}",
                 e

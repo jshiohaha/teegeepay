@@ -6,7 +6,7 @@ mod partial_sign;
 mod routes;
 mod solana;
 
-use crate::solana::airdrop::request_and_confirm;
+use crate::solana::airdrop::request_airdrop_and_confirm;
 use anyhow::Result;
 use solana_client::{nonblocking::rpc_client::RpcClient, rpc_config::CommitmentConfig};
 use solana_keypair::Keypair;
@@ -85,7 +85,7 @@ async fn main() -> Result<()> {
     let authority_kp = std::env::var("AUTHORITY_KP").expect("AUTHORITY_KP must be set");
     let global_authority = solana::utils::kp_from_base58_string(&authority_kp);
 
-    request_and_confirm(
+    request_airdrop_and_confirm(
         rpc_client.clone(),
         &global_authority.pubkey(),
         10 * 10_u64.pow(9),

@@ -6,16 +6,24 @@ use crate::{
     handlers::{ApiResponse, AppError},
     solana::transaction::build_transaction,
 };
+use anyhow::Result;
 use axum::extract::Path;
 use axum::{Json, extract::State};
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as};
+use solana_client::nonblocking::rpc_client::RpcClient;
+use solana_keypair::Keypair;
 use solana_keypair::Signature;
 use solana_pubkey::Pubkey;
 use solana_signer::Signer;
+use solana_transaction::versioned::VersionedTransaction;
 use spl_associated_token_account::get_associated_token_address_with_program_id;
 use std::sync::Arc;
 use tracing::info;
+
+// TODO: make dynamic?
+const TOKEN_DECIMALS: u32 = 9;
+const DECIMAL_MULTIPLIER: f64 = 1_000_000_000.0; // 10^9
 
 #[serde_as]
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
@@ -49,45 +57,29 @@ pub struct MintTokenResponse {
     pub signature: Signature,
 }
 
-// TODO: not condiential mint atm
-// handler is at POST /tokens/:address/mint
+/// Handler for POST /tokens/:address/mint
 pub async fn handler(
     State(state): State<Arc<AppState>>,
     Path(path): Path<MintTokenPath>,
     Json(payload): Json<MintTokenRequest>,
 ) -> Result<ApiResponse<MintTokenResponse>, AppError> {
-    let adjusted_amount = (payload.amount * 10_f64.powf(9.0)) as u64;
+    let adjusted_amount = scale_decimal_amount(payload.amount);
     info!(
         "Minting {:?} of mint={:?} to recipient={:?}",
         adjusted_amount, payload.mint, path.address
     );
 
-    let Some(recipient_wallet) = db::get_wallet_by_pubkey(&state.db, &path.address).await? else {
-        return Err(AppError::not_found(anyhow::anyhow!(
-            "Recipient wallet not found"
-        )));
-    };
+    // Validate recipient wallet
+    let ata_authority: Arc<Keypair> = validate_recipient_wallet(&state.db, &path.address).await?;
 
-    if recipient_wallet.pubkey != path.address {
-        return Err(AppError::internal_server_error(anyhow::anyhow!(
-            "Recipient wallet keypair does not match provided pubkey"
-        )));
-    }
-
-    let global_authority = state.global_authority.clone();
-    let global_authority_pubkey = global_authority.pubkey();
-
-    let ata_authority = Arc::new(recipient_wallet.keypair);
-    let ata_authority_pubkey = ata_authority.pubkey();
-
+    // Prepare confidential keys and parameters
     let confidential_keys = confidential_keys_for_mint(ata_authority.clone(), &payload.mint)?;
-    let is_confidential_mint =
-        solana::tokens::is_confidential_mint_enabled(state.rpc_client.clone(), &payload.mint)
+    let confidential_features =
+        solana::tokens::get_enabled_confidential_features(state.rpc_client.clone(), &payload.mint)
             .await?;
-    // let is_confidential_mintburn =
-    //     solana::tokens::is_confidential_mintburn_enabled(state.rpc_client.clone(), &payload.mint)
-    //         .await?;
-    let confidential_mint_params = if is_confidential_mint {
+
+    let has_confidential_features = !confidential_features.is_empty();
+    let confidential_mint_params = if has_confidential_features {
         Some(solana::mint::ConfidentialMintParams {
             destination_keys: &confidential_keys,
             supply_elgamal_keypair: state.elgamal_keypair.clone(),
@@ -97,151 +89,218 @@ pub async fn handler(
     } else {
         None
     };
-    let receiving_token_account = get_associated_token_address_with_program_id(
-        &path.address,
-        &payload.mint,
-        &spl_token_2022::id(),
-    );
 
-    let mut instructions = Vec::new();
-    let mut additional_signers = Vec::new();
-
-    // Setup the token account with the derived keys
-    let setup_token_account_instructions = setup_token_account_with_keys(
-        state.rpc_client.clone(),
-        &global_authority_pubkey,
-        &ata_authority_pubkey,
+    // Setup token account if needed
+    execute_token_account_setup(
+        &state,
+        state.global_authority.clone(),
+        ata_authority.clone(),
         &payload.mint,
         &confidential_keys,
+        has_confidential_features,
     )
     .await?;
 
-    if !setup_token_account_instructions.instructions.is_empty() {
-        instructions.extend(setup_token_account_instructions.instructions);
+    // Execute mint based on confidential status
+    let signature = if let Some(params) = confidential_mint_params {
+        let receiving_token_account = get_associated_token_address_with_program_id(
+            &path.address,
+            &payload.mint,
+            &spl_token_2022::id(),
+        );
 
-        // Note: additional_signers removed in prepration for returning ix's to the user
-        additional_signers.push(ata_authority.clone() as Arc<dyn Signer + Send + Sync>);
-    }
-
-    if confidential_mint_params.is_some() {
-        let tx = build_transaction(
-            state.rpc_client.clone(),
-            None,
-            instructions,
-            global_authority.clone(),
-            additional_signers,
-        )
-        .await?;
-
-        info!("Sending mint transaction for mint={:?}", payload.mint);
-
-        let signature = state
-            .rpc_client
-            .send_and_confirm_transaction(&tx)
-            .await
-            .map_err(|e| {
-                AppError::internal_server_error(anyhow::anyhow!(
-                    "Failed to send and confirm transaction: {}",
-                    e
-                ))
-            })?;
-
-        println!("setup token account transaction signature: {:?}", signature);
-
-        instructions = vec![];
-        additional_signers = vec![];
-    }
-
-    if let Some(conf_params) = confidential_mint_params {
-        let pending_txs = solana::mint::build_confidential_mint_transactions(
-            state.rpc_client.clone(),
-            global_authority.clone(),
+        execute_confidential_mint(
+            &state,
+            state.global_authority.clone(),
             &receiving_token_account,
             &payload.mint,
             adjusted_amount,
-            conf_params,
+            params,
+        )
+        .await?
+    } else {
+        execute_standard_mint(
+            &state,
+            state.global_authority.clone(),
+            &path.address,
+            &payload.mint,
+            adjusted_amount,
+        )
+        .await?
+    };
+
+    Ok(ApiResponse::new(MintTokenResponse {
+        mint: payload.mint,
+        signature,
+    }))
+}
+
+fn scale_decimal_amount(amount: f64) -> u64 {
+    (amount * DECIMAL_MULTIPLIER) as u64
+}
+
+async fn validate_recipient_wallet(db: &sqlx::PgPool, address: &Pubkey) -> Result<Arc<Keypair>> {
+    let wallet = db::get_wallet_by_pubkey(db, address)
+        .await?
+        .ok_or_else(|| AppError::not_found(anyhow::anyhow!("Recipient wallet not found")))?;
+
+    if wallet.pubkey != *address {
+        return Err(anyhow::anyhow!(
+            "Recipient wallet keypair does not match provided pubkey"
+        ));
+    }
+
+    Ok(wallet.keypair)
+}
+
+/// Sends a transaction and confirms it, with consistent error handling.
+async fn send_transaction(
+    rpc_client: Arc<RpcClient>,
+    transaction: &VersionedTransaction,
+    context: &str,
+) -> Result<Signature, AppError> {
+    rpc_client
+        .clone()
+        .send_and_confirm_transaction(transaction)
+        .await
+        .map_err(|e| {
+            AppError::internal_server_error(anyhow::anyhow!(
+                "Failed to send and confirm {} transaction: {}",
+                context,
+                e
+            ))
+        })
+}
+
+/// Executes token account setup if needed, returning whether setup was performed.
+async fn execute_token_account_setup(
+    state: &AppState,
+    global_authority: Arc<dyn Signer + Send + Sync>,
+    ata_authority: Arc<dyn Signer + Send + Sync>,
+    mint: &Pubkey,
+    confidential_keys: &solana::signature_signer::ConfidentialKeys,
+    is_confidential: bool,
+) -> Result<bool, AppError> {
+    let setup_instructions = setup_token_account_with_keys(
+        state.rpc_client.clone(),
+        &global_authority.pubkey(),
+        &ata_authority.pubkey(),
+        mint,
+        confidential_keys,
+    )
+    .await?;
+
+    if setup_instructions.instructions.is_empty() {
+        return Ok(false);
+    }
+
+    if is_confidential {
+        info!("Setting up confidential token account for mint={:?}", mint);
+
+        let signers = vec![ata_authority.clone()];
+        let transaction = build_transaction(
+            state.rpc_client.clone(),
+            None,
+            setup_instructions.instructions,
+            global_authority.clone(),
+            signers,
         )
         .await?;
 
-        let mut last_signature = Signature::default();
-        for pending in pending_txs {
-            let transaction = build_transaction(
-                state.rpc_client.clone(),
-                None,
-                pending.instructions,
-                global_authority.clone(),
-                pending.additional_signers,
-            )
-            .await?;
-
-            last_signature = state
-                .rpc_client
-                .send_and_confirm_transaction(&transaction)
-                .await
-                .map_err(|e| {
-                    AppError::internal_server_error(anyhow::anyhow!(
-                        "Failed to send and confirm transaction: {}",
-                        e
-                    ))
-                })?;
-        }
-
-        return Ok(ApiResponse::new(MintTokenResponse {
-            mint: payload.mint,
-            signature: last_signature,
-        }));
+        let signature = send_transaction(
+            state.rpc_client.clone(),
+            &transaction,
+            "token account setup",
+        )
+        .await?;
+        info!(
+            "Token account setup completed with signature={:?}",
+            signature
+        );
     }
 
-    info!("Create mint instructions for mint={:?}", payload.mint);
+    Ok(true)
+}
+
+/// Executes a confidential mint operation.
+async fn execute_confidential_mint(
+    state: &AppState,
+    global_authority: Arc<dyn Signer + Send + Sync>,
+    receiving_token_account: &Pubkey,
+    mint: &Pubkey,
+    amount: u64,
+    params: solana::mint::ConfidentialMintParams<'_>,
+) -> Result<Signature, AppError> {
+    let pending_txs = solana::mint::build_confidential_mint_transactions(
+        state.rpc_client.clone(),
+        global_authority.clone(),
+        receiving_token_account,
+        mint,
+        amount,
+        params,
+    )
+    .await?;
+
+    let mut last_signature = Signature::default();
+    for pending in pending_txs {
+        let transaction = build_transaction(
+            state.rpc_client.clone(),
+            None,
+            pending.instructions,
+            global_authority.clone(),
+            pending.additional_signers,
+        )
+        .await?;
+
+        last_signature =
+            send_transaction(state.rpc_client.clone(), &transaction, "confidential mint").await?;
+    }
+
+    info!(
+        "Completed confidential mint for mint={:?} with signature={:?}",
+        mint, last_signature
+    );
+
+    Ok(last_signature)
+}
+
+/// Executes a standard (non-confidential) mint operation.
+async fn execute_standard_mint(
+    state: &AppState,
+    global_authority: Arc<dyn Signer + Send + Sync>,
+    recipient_address: &Pubkey,
+    mint: &Pubkey,
+    amount: u64,
+) -> Result<Signature, AppError> {
+    info!("Creating standard mint instructions for mint={:?}", mint);
 
     let mint_instructions = solana::mint::go(
         state.rpc_client.clone(),
         &global_authority.pubkey(),
         global_authority.clone(),
-        &path.address,
-        &payload.mint,
-        adjusted_amount,
+        recipient_address,
+        mint,
+        amount,
         None,
     )
     .await?;
 
-    if !mint_instructions.instructions.is_empty() {
-        instructions.extend(mint_instructions.instructions);
-        if !mint_instructions.additional_signers.is_empty() {
-            additional_signers.extend(mint_instructions.additional_signers);
-        }
-    }
-
-    info!("Build mint transaction for mint={:?}", payload.mint);
     let transaction = build_transaction(
         state.rpc_client.clone(),
         None,
-        instructions,
+        mint_instructions.instructions,
         global_authority.clone(),
-        additional_signers,
+        mint_instructions.additional_signers,
     )
     .await?;
 
-    info!("Sending mint transaction for mint={:?}", payload.mint);
-
-    let transaction_signature = state
-        .rpc_client
-        .send_and_confirm_transaction(&transaction)
-        .await
-        .map_err(|e| {
-            AppError::internal_server_error(anyhow::anyhow!(
-                "Failed to send and confirm transaction: {}",
-                e
-            ))
-        })?;
+    let signature =
+        send_transaction(state.rpc_client.clone(), &transaction, "standard mint").await?;
 
     info!(
-        "Created mint transaction for mint={:?} with signature={:?}",
-        payload.mint, transaction_signature
+        "Completed standard mint for mint={:?} with signature={:?}",
+        mint, signature
     );
 
-    Ok(ApiResponse::new(MintTokenResponse {
-        mint: payload.mint,
-        signature: transaction_signature,
-    }))
+    Ok(signature)
 }

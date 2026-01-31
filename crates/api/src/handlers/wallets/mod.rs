@@ -6,7 +6,6 @@ use std::sync::Arc;
 
 use crate::AppState;
 
-pub mod airdrop;
 pub mod balance;
 pub mod create;
 pub mod deposit;
@@ -22,6 +21,5 @@ pub fn routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/", post(create::handler))
         .route("/{address}/deposit", post(deposit::handler))
         .route("/{address}/withdraw", post(withdraw::handler))
-        .route("/{address}/airdrop", post(airdrop::handler))
         .with_state(state)
 }

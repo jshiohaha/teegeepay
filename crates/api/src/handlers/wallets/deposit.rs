@@ -116,14 +116,14 @@ pub async fn handler(
         .clone()
         .send_and_confirm_transaction(&tx)
         .await
-        .with_context(|| anyhow::anyhow!("Error sending transaction"))
+        .with_context(|| anyhow::anyhow!("error sending transaction"))
         .map_err(AppError::from)?;
     transactions.push(TransactionResult {
         label: "Deposit".to_string(),
         signature: deposit_signature,
     });
     info!(
-        "Transfer [Deposit Confidential Pending Balance] with signature={:?}",
+        "transfer [deposit confidential pending balance] with signature={:?}",
         deposit_signature
     );
 
@@ -133,7 +133,8 @@ pub async fn handler(
         &payload.mint,
         &confidential_keys,
     )
-    .await?;
+    .await
+    .map_err(AppError::from)?;
 
     let transaction = build_transaction(
         state.rpc_client.clone(),
@@ -142,7 +143,8 @@ pub async fn handler(
         owner_kp.clone(),
         apply_instructions.additional_signers.into_iter().collect(),
     )
-    .await?;
+    .await
+    .map_err(AppError::from)?;
 
     let apply_signature = state
         .rpc_client
@@ -151,14 +153,11 @@ pub async fn handler(
         .await
         .with_context(|| anyhow::anyhow!("Error sending transaction"))
         .map_err(AppError::from)?;
+
     transactions.push(TransactionResult {
         label: "Apply Pending Balance".to_string(),
         signature: apply_signature,
     });
-    info!(
-        "Deposit [Apply Pending Balance] with signature={:?}",
-        apply_signature
-    );
 
     Ok(ApiResponse::new(DepositTokensResponse { transactions }))
 }

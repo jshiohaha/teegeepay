@@ -17,6 +17,7 @@ pub struct ListWalletsResponse {
     pub pubkeys: Vec<Pubkey>,
 }
 
+// handler is at GET /api/wallets, returns all wallets for the authenticated user
 pub async fn handler(
     State(state): State<Arc<AppState>>,
     auth_user: AuthUser,

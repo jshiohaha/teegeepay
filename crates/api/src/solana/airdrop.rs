@@ -5,7 +5,7 @@ use solana_keypair::Signature;
 use solana_pubkey::Pubkey;
 use std::sync::Arc;
 
-pub async fn request_and_confirm(
+pub async fn request_airdrop_and_confirm(
     rpc_client: Arc<RpcClient>,
     pubkey: &Pubkey,
     lamport_amount: u64,
