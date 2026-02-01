@@ -16,7 +16,8 @@ This project started during the [2026 Solana Privacy Hackathon](https://solana.c
 -   Use the features of Token2022 confidential transfers: deposit, withdraw, transfer
 -   Enable frictionless confidential transfers to a Solana address or other Telegram users
 -   Quickly check public and private balances and compare against explorer data
--   Custodial keypairs stored in a database, extensible to other solutions — AWS KMS, MPC solutions, etc
+-   Custodial user kyepairs stored in a database (most basic, insecure hackathon demo), extensible to other solutions — AWS KMS, MPC solutions, etc
+    -   The [aws-kms](https://github.com/jshiohaha/cypherpay/tree/aws-kms) branch contains an example of how one might use KMS for keypair managemeent. It's not included in the main branch because the non-zero cost of working with KMS. For simplicity and hackathon purposes, we maintain the most simple implementation.
 -   Perform mint, transfer, and check blalance on an SPL token the following extensions: confidential transfer, confidential mint burn, metadata pointer, and token metadata
 
 ## Future Development
@@ -42,9 +43,35 @@ We’ve seen a change in online activity from big, public forums to small, priva
 
 ## Architecture
 
-The Next.js UI serves as a Telegram mini app that communicates with the Rust API backend. The API manages wallet keypairs, builds and executes Solana transactions using SPL Token-2022 with confidential transfer extensions.
+The Next.js UI serves as a Telegram mini app that communicates with the Rust API backend. The API is responsible for everything else: managing wallet keypairs, associating them with telegram accounts, building and executeing Solana transactions.
 
-**Important Security Note**: Since Telegram doesn't have an embedded wallet, this implementation stores user keypairs on the backend (custodial wallets managed server-side). This is **NOT** a secure production implementation and is intended for hackathon/demonstration purposes only.
+Interesting read on the development of the confidential transfer account evolution and resulting structure: https://www.solana-program.com/docs/confidential-balances/encryption
+
+### Implementation Details
+
+-   Telegram doesn't have an embedded wallet interface, so a completely non-custodial implementation is not possible from within Telegram. Each user has a single custodial keypair that is used to derive the AES and ElGamal Key derivation. This way, we do not need to separately manage new, separate keys for encryption. On the other hand, the complexity of interfacing with wallets is abstracted since keypairs are completely custodial.
+-   Confidential token actions require multiple signatures per instruction, so users would need to sign multiple messages without any abstraction when using the derived AES and ElGamal Key method.
+-   This completely custodial solution kind of negates the strongest benefits of any confidential token operations. However, I believe there are still useful products that could be built with similar designs.
+-   Ignores the complexity of dealing with non-atomic operations in a live cluster. For a real world application, we would need (1) more complex state management or (2) to use Jito bundles when possible. Working on a private Surfpool is convenient because transaction landing is a non-issue. More details [here](https://github.com/solana-developers/Confidential-Balances-Sample/blob/main/docs/wallet_guide_transfers.md#atomic).
+-   Since keypairs are custodial, this application follows the trusted backend encryption/decryption model. The [confidential balances repository](https://github.com/solana-developers/Confidential-Balances-Sample/blob/main/docs/wallet_guide_balances.md#alternative-trusted-backend-decryption) has a nice diagram showing the decryption flow, so we include the same one here for convenience.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant BackendAPI as Backend API
+    participant SolanaRPC as Solana RPC
+
+    User->>Frontend: Request Balance View
+    Frontend->>SolanaRPC: Fetch Account Data
+    SolanaRPC-->>Frontend: Return Account Data
+    Frontend->>BackendAPI: Request Balance Decryption (send account_data, auth info)
+    BackendAPI->>BackendAPI: Retrieve Keys & Decrypt balance
+    BackendAPI-->>Frontend: Return Decrypted Balance
+    Frontend-->>User: Display Balance
+```
+
+**Important Security Note**: This is **NOT** a secure production implementation and is intended for hackathon/demonstration purposes only.
 
 ## Tech Stack
 
@@ -182,6 +209,7 @@ The `scripts/` directory contains helpful utilities mostly for local setup/testi
 -   Breakdown of what [confidential transfers](https://solana.com/docs/tokens/extensions/confidential-transfer) are and how they work
 -   Confidential balances [overview](https://www.solana-program.com/docs/confidential-balances), including protocol overview, encryption, and zero-knowledge proofs.
 -   🌊 [Surfpool](https://www.surfpool.run) being the best way to test locally, no questions asked
+-   Helius overview of [confidential-balances](https://www.helius.dev/blog/confidential-balances)
 
 ## License
 
