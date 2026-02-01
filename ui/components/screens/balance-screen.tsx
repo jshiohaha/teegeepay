@@ -19,9 +19,9 @@ import {
     Eye,
     EyeOff,
     RefreshCw,
-    Wallet,
 } from "lucide-react";
 import { useState } from "react";
+import { ThemeToggle } from "../theme-toggle";
 
 export function BalanceScreen() {
     const {
@@ -98,19 +98,13 @@ export function BalanceScreen() {
 
     return (
         <div className="flex flex-col h-full">
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-border">
-                <div className="flex items-center gap-2">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary">
-                        <Wallet className="w-4 h-4 text-primary-foreground" />
-                    </div>
-                    <span className="font-semibold text-foreground">
-                        My Wallet
-                    </span>
+            <div className="flex items-center justify-between px-4 pt-2 pb-0">
+                <div className="flex items-center justify-end w-full">
+                    <ThemeToggle />
                 </div>
             </div>
 
-            <div className="flex-1 p-4 flex flex-col gap-4 overflow-y-auto">
+            <div className="flex-1 px-4 pb-4 pt-0 flex flex-col gap-4 overflow-y-auto">
                 {/* Address */}
                 <div>
                     <p className="text-xs text-muted-foreground mb-2 uppercase tracking-wider font-medium">
@@ -163,7 +157,11 @@ export function BalanceScreen() {
                                             className="p-1 rounded-md hover:bg-secondary/50 transition-colors disabled:opacity-50 hover:cursor-pointer"
                                         >
                                             <RefreshCw
-                                                className={`w-3.5 h-3.5 text-muted-foreground ${isRefreshing ? "animate-spin" : ""}`}
+                                                className={`w-3.5 h-3.5 text-muted-foreground ${
+                                                    isRefreshing
+                                                        ? "animate-spin"
+                                                        : ""
+                                                }`}
                                             />
                                         </button>
                                     </TooltipTrigger>
@@ -204,7 +202,11 @@ export function BalanceScreen() {
                                 <button
                                     onClick={() => startConversion("toPublic")}
                                     disabled={wallet.cusd.private === 0}
-                                    className={`flex gap-1.5 px-1 text-xs font-medium text-muted-foreground rounded-md disabled:opacity-40 disabled:cursor-not-allowed ${wallet.cusd.private === 0 ? "opacity-40 cursor-not-allowed" : "hover:cursor-pointer hover:text-foreground transition-colors"}`}
+                                    className={`flex gap-1.5 px-1 text-xs font-medium text-muted-foreground rounded-md disabled:opacity-40 disabled:cursor-not-allowed ${
+                                        wallet.cusd.private === 0
+                                            ? "opacity-40 cursor-not-allowed"
+                                            : "hover:cursor-pointer hover:text-foreground transition-colors"
+                                    }`}
                                 >
                                     Make Public
                                 </button>
@@ -224,7 +226,11 @@ export function BalanceScreen() {
                                 <button
                                     onClick={() => startConversion("toPrivate")}
                                     disabled={wallet.cusd.public === 0}
-                                    className={`flex gap-1.5 px-1 text-xs font-medium text-muted-foreground rounded-md disabled:opacity-40 disabled:cursor-not-allowed ${wallet.cusd.public === 0 ? "opacity-40 cursor-not-allowed" : "hover:cursor-pointer hover:text-foreground transition-colors"}`}
+                                    className={`flex gap-1.5 px-1 text-xs font-medium text-muted-foreground rounded-md disabled:opacity-40 disabled:cursor-not-allowed ${
+                                        wallet.cusd.public === 0
+                                            ? "opacity-40 cursor-not-allowed"
+                                            : "hover:cursor-pointer hover:text-foreground transition-colors"
+                                    }`}
                                 >
                                     Make Private
                                 </button>
@@ -259,7 +265,11 @@ export function BalanceScreen() {
                 {/* Actions */}
                 <div className="flex gap-3">
                     <Button
-                        className={`flex-1 h-12 bg-transparent text-foreground hover:bg-transparent hover:cursor-pointer border border-[#ececec] border-opacity-50 ${isMinting || isRefreshing ? "opacity-50 cursor-not-allowed" : ""}`}
+                        className={`flex-1 h-12 bg-transparent text-foreground hover:bg-transparent hover:cursor-pointer border border-[#ececec] border-opacity-50 ${
+                            isMinting || isRefreshing
+                                ? "opacity-50 cursor-not-allowed"
+                                : ""
+                        }`}
                         onClick={handleMint}
                         disabled={isMinting || isRefreshing}
                     >
