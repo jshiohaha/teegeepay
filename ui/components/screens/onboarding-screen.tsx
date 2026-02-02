@@ -9,28 +9,19 @@ export function OnboardingScreen() {
     const { createWallet, claimWallet, onboardingMode } = useWallet();
 
     const [isCreating, setIsCreating] = useState(false);
-    const [debugMsg, setDebugMsg] = useState("Ready");
 
     const isClaimMode = onboardingMode === "claim";
 
     const handleCreate = async () => {
-        setDebugMsg("Clicked!");
         setIsCreating(true);
-        setDebugMsg(isClaimMode ? "Claiming wallet..." : "Creating wallet...");
         try {
             if (isClaimMode) {
                 await claimWallet();
             } else {
                 await createWallet();
             }
-            setDebugMsg("Success!");
             setIsCreating(false);
         } catch (error) {
-            setDebugMsg(
-                `Error: ${
-                    error instanceof Error ? error.message : String(error)
-                }`
-            );
             setIsCreating(false);
         }
     };
@@ -124,11 +115,6 @@ export function OnboardingScreen() {
 
                 <p className="text-xs text-muted-foreground text-center mt-4">
                     By continuing, you agree to our Terms of Service
-                </p>
-
-                {/* Debug message - remove after fixing */}
-                <p className="text-xs text-center mt-2 p-2 bg-yellow-100 text-yellow-800 rounded">
-                    Debug: {debugMsg}
                 </p>
             </div>
         </div>
