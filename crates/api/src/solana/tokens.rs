@@ -12,6 +12,7 @@ use spl_token_2022::{
         confidential_mint_burn::ConfidentialMintBurn,
         confidential_transfer::{
             ConfidentialTransferAccount, ConfidentialTransferMint,
+            DEFAULT_MAXIMUM_PENDING_BALANCE_CREDIT_COUNTER,
             instruction::{PubkeyValidityProofData, configure_account},
         },
     },
@@ -22,7 +23,7 @@ use spl_token_confidential_transfer_proof_extraction::instruction::ProofLocation
 use std::sync::Arc;
 
 use crate::solana::GeneratedInstructions;
-use crate::solana::signature_signer::ConfidentialKeys;
+use crate::solana::confidential_keys::ConfidentialKeys;
 
 pub async fn get_enabled_confidential_features(
     rpc_client: Arc<RpcClient>,
@@ -180,18 +181,13 @@ pub async fn setup_token_account_with_keys(
         // Instruction to reallocate the token account to include the `ConfidentialTransferAccount` extension
         let reallocate_instruction = reallocate(
             &spl_token_2022::id(),
-            &ata,                                          // Token account
-            fee_payer,                                     // Payer
-            ata_authority_pubkey,                          // Token account owner
-            &[ata_authority_pubkey],                       // Signers
-            &[ExtensionType::ConfidentialTransferAccount], // Extension to reallocate space for
+            &ata,
+            fee_payer,
+            ata_authority_pubkey,
+            &[ata_authority_pubkey],
+            &[ExtensionType::ConfidentialTransferAccount],
         )?;
 
-        // The maximum number of `Deposit` and `Transfer` instructions that can
-        // credit `pending_balance` before the `ApplyPendingBalance` instruction is executed
-        let maximum_pending_balance_credit_counter = 65536;
-
-        // Initial token balance is 0
         let decryptable_balance = confidential_keys.ae_key.encrypt(0);
 
         // The instruction data that is needed for the `ProofInstruction::VerifyPubkeyValidity` instruction.
@@ -207,14 +203,14 @@ pub async fn setup_token_account_with_keys(
         // Instructions to configure the token account, including the proof instruction
         // Appends the `VerifyPubkeyValidityProof` instruction right after the `ConfigureAccount` instruction.
         let configure_account_instruction = configure_account(
-            &spl_token_2022::id(),                  // Program ID
-            &ata,                                   // Token account
-            mint,                                   // Mint
-            &decryptable_balance.into(),            // Initial balance
-            maximum_pending_balance_credit_counter, // Maximum pending balance credit counter
-            ata_authority_pubkey,                   // Token Account Owner
-            &[],                                    // Additional signers
-            proof_location,                         // Proof location
+            &spl_token_2022::id(),
+            &ata,
+            mint,
+            &decryptable_balance.into(),
+            DEFAULT_MAXIMUM_PENDING_BALANCE_CREDIT_COUNTER,
+            ata_authority_pubkey,
+            &[],
+            proof_location,
         )?;
 
         instructions.push(reallocate_instruction);

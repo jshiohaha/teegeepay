@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use solana_keypair::{Keypair, Signature};
+use solana_keypair::Keypair;
 use solana_pubkey::Pubkey;
 use solana_signer::Signer;
 use spl_associated_token_account::get_associated_token_address_with_program_id;
 use spl_token_2022::solana_zk_sdk::encryption::{auth_encryption::AeKey, elgamal::ElGamalKeypair};
 
-use crate::solana::signature_signer::{ConfidentialKeys, SignatureKeyDerivation};
+use crate::solana::confidential_keys::ConfidentialKeys;
 
 pub fn kp_from_base58_string(kp: &str) -> Keypair {
     Keypair::from_base58_string(kp)
@@ -27,50 +27,29 @@ pub fn ae_key_deterministic(kp: &dyn Signer) -> Result<AeKey> {
 
 /// Derive confidential keys for a given mint and owner.
 ///
-/// # Arguments
-/// * `owner` - The owner of the token account
-/// * `mint` - The mint address
-///
-/// # Returns
-/// * `ConfidentialKeys` - The confidential keys for the given mint and owner
-///
-/// # Example
-/// ```ignore
-/// let confidential_keys = confidential_keys_for_mint(owner, mint)?;
-/// ```
-///
-/// # Browser Wallet Flow
-/// ```ignore
-/// let ata = get_associated_token_address_with_program_id(&owner.pubkey(), &mint, &spl_token_2022::id());
-/// let signature = owner.sign_message(&ata.to_bytes());
-/// let confidential_keys = confidential_keys_for_mint(owner, mint)?;
-/// ```
+/// Uses the ATA address as the seed for deterministic key derivation.
 pub fn confidential_keys_for_mint(
     owner: Arc<dyn Signer + Send + Sync>,
     mint: &Pubkey,
 ) -> Result<ConfidentialKeys> {
-    let owner_pubkey = owner.pubkey();
-    let ata =
-        get_associated_token_address_with_program_id(&owner_pubkey, &mint, &spl_token_2022::id());
-
-    let signature = owner.sign_message(&ata.to_bytes());
-    let signature_bytes: [u8; 64] = signature.into();
-
-    let key_derivation = SignatureKeyDerivation::new(owner_pubkey, signature_bytes.to_vec());
-
-    key_derivation
-        .derive_keys(&ata.to_bytes())
+    let ata = get_associated_token_address_with_program_id(
+        &owner.pubkey(),
+        mint,
+        &spl_token_2022::id(),
+    );
+    ConfidentialKeys::from_signer(owner.as_ref(), &ata.to_bytes())
         .map_err(|e| anyhow::anyhow!("Failed to derive confidential keys: {}", e))
 }
 
-#[allow(dead_code)]
+/// Derive confidential keys from pre-computed signature bytes (non-custodial).
+///
+/// The client signs the ATA address bytes and sends the 64-byte signature.
 pub fn confidential_keys_from_signature(
     owner: &Pubkey,
     mint: &Pubkey,
-    signature: Signature,
+    signature_bytes: &[u8; 64],
 ) -> Result<ConfidentialKeys> {
-    let ata = get_associated_token_address_with_program_id(&owner, &mint, &spl_token_2022::id());
-    let signature_bytes: [u8; 64] = signature.into();
-
-    SignatureKeyDerivation::new(*owner, signature_bytes.to_vec()).derive_keys(&ata.to_bytes())
+    let ata = get_associated_token_address_with_program_id(owner, mint, &spl_token_2022::id());
+    ConfidentialKeys::from_signature_bytes(*owner, signature_bytes, &ata.to_bytes())
+        .map_err(|e| anyhow::anyhow!("Failed to derive confidential keys: {}", e))
 }

@@ -1,5 +1,13 @@
+//! Confidential minting for SPL Token-2022 tokens.
+//!
+//! Supports both regular (plaintext) minting via [`go`] and confidential
+//! minting via [`build_confidential_mint_transactions`], which generates
+//! the required ZK proof context accounts (equality, ciphertext-validity,
+//! and range proofs) across multiple transactions, executes the confidential
+//! mint, and cleans up proof accounts afterward.
+
 use crate::solana::{
-    GeneratedInstructions, signature_signer::ConfidentialKeys,
+    GeneratedInstructions, confidential_keys::ConfidentialKeys,
     zk::get_zk_proof_context_state_account_creation_instructions,
 };
 use anyhow::Result;
@@ -36,12 +44,12 @@ pub struct ConfidentialMintParams<'a> {
     pub auditor_elgamal_pubkey: Option<ElGamalPubkey>,
 }
 
-pub struct PendingTransaction {
+pub struct InstructionsAndSigners {
     pub instructions: Vec<Instruction>,
     pub additional_signers: Vec<Arc<dyn Signer + Send + Sync>>,
 }
 
-pub async fn go(
+pub async fn build_standard_mint_instructions(
     _rpc_client: Arc<RpcClient>,
     _funding_address: &Pubkey,
     mint_authority: Arc<dyn Signer + Send + Sync>,
@@ -55,19 +63,18 @@ pub async fn go(
     }
 
     let receiving_token_account = get_associated_token_address_with_program_id(
-        &token_account_owner, // Token account owner
-        mint,                 // Mint
+        &token_account_owner,
+        mint,
         &spl_token_2022::id(),
     );
 
-    // Instruction to mint tokens
     let mint_to_instruction: Instruction = mint_to(
         &spl_token_2022::id(),
-        mint,                        // Mint
-        &receiving_token_account,    // Token account to mint to
-        &mint_authority.pubkey(),    // Token account owner
-        &[&mint_authority.pubkey()], // Additional signers (mint authority)
-        mint_amount,                 // Amount to mint
+        mint,
+        &receiving_token_account,
+        &mint_authority.pubkey(),
+        &[&mint_authority.pubkey()],
+        mint_amount,
     )?;
 
     Ok(GeneratedInstructions {
@@ -83,7 +90,7 @@ pub async fn build_confidential_mint_transactions(
     mint: &Pubkey,
     mint_amount: u64,
     params: ConfidentialMintParams<'_>,
-) -> Result<Vec<PendingTransaction>> {
+) -> Result<Vec<InstructionsAndSigners>> {
     let mint_account = rpc_client
         .get_account(mint)
         .await
@@ -156,7 +163,7 @@ pub async fn build_confidential_mint_transactions(
         .await?;
 
     let mut pending_txs = Vec::new();
-    pending_txs.push(PendingTransaction {
+    pending_txs.push(InstructionsAndSigners {
         instructions: vec![range_create_ix, equality_create_ix, ciphertext_create_ix],
         additional_signers: vec![
             range_ctx.clone() as Arc<dyn Signer + Send + Sync>,
@@ -165,12 +172,12 @@ pub async fn build_confidential_mint_transactions(
         ],
     });
 
-    pending_txs.push(PendingTransaction {
+    pending_txs.push(InstructionsAndSigners {
         instructions: vec![range_verify_ix],
         additional_signers: vec![],
     });
 
-    pending_txs.push(PendingTransaction {
+    pending_txs.push(InstructionsAndSigners {
         instructions: vec![equality_verify_ix, ciphertext_verify_ix],
         additional_signers: vec![],
     });
@@ -228,7 +235,7 @@ pub async fn build_confidential_mint_transactions(
     mint_instructions.push(close_ciphertext_ix);
     mint_instructions.push(close_range_ix);
 
-    pending_txs.push(PendingTransaction {
+    pending_txs.push(InstructionsAndSigners {
         instructions: mint_instructions,
         additional_signers: vec![],
     });

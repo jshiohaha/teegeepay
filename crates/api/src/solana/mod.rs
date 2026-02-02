@@ -3,7 +3,7 @@ pub mod balance;
 pub mod create;
 pub mod deposit;
 pub mod mint;
-pub mod signature_signer;
+pub mod confidential_keys;
 pub mod supply;
 pub mod tokens;
 pub mod transaction;

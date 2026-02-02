@@ -1,3 +1,11 @@
+//! Deposit tokens into the confidential (pending) balance.
+//!
+//! Moves tokens from a token account's non-confidential balance into its
+//! confidential pending balance via the SPL Token-2022 confidential transfer
+//! `deposit` instruction. The pending balance must later be applied (see
+//! [`crate::solana::balance::apply_pending_balance`]) before the funds
+//! become available for confidential transfers.
+
 use anyhow::Result;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_pubkey::Pubkey;
@@ -7,6 +15,7 @@ use std::sync::Arc;
 
 use crate::solana::GeneratedInstructions;
 
+/// Deposit tokens from non-confidential balance to "pending" balance
 pub async fn deposit_tokens(
     _rpc_client: Arc<RpcClient>,
     depositor: &Pubkey,
@@ -14,28 +23,22 @@ pub async fn deposit_tokens(
     decimals: u8,
     amount: u64,
 ) -> Result<GeneratedInstructions> {
-    // Confidential balance has separate "pending" and "available" balances
-    // Must first deposit tokens from non-confidential balance to  "pending" confidential balance
+    let depositor_token_account =
+        get_associated_token_address_with_program_id(depositor, &mint, &spl_token_2022::id());
 
-    let depositor_token_account = get_associated_token_address_with_program_id(
-        depositor, // Token account owner
-        &mint,     // Mint
-        &spl_token_2022::id(),
-    );
-
-    // Instruction to deposit from non-confidential balance to "pending" balance
+    // deposit from non-confidential balance to "pending" balance
     let deposit_instruction = deposit(
         &spl_token_2022::id(),
-        &depositor_token_account, // Token account
-        &mint,                    // Mint
-        amount,                   // Amount to deposit
-        decimals,                 // Mint decimals
-        depositor,                // Token account owner
-        &[],                      // Signers
+        &depositor_token_account,
+        &mint,
+        amount,
+        decimals,
+        depositor,
+        &[],
     )?;
 
     Ok(GeneratedInstructions {
         instructions: vec![deposit_instruction],
-        additional_signers: vec![], // depositor.clone()
+        additional_signers: vec![],
     })
 }

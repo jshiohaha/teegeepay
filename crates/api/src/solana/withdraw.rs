@@ -1,3 +1,12 @@
+//! Withdraw tokens from confidential balance back to non-confidential balance.
+//!
+//! Generates the required ZK proofs (equality and range), creates and
+//! verifies proof context state accounts, executes the confidential
+//! withdraw instruction, and closes proof accounts to reclaim rent.
+//! Two variants are provided: [`withdraw_tokens_with_keys`] for pre-derived
+//! keys (browser wallet flows) and [`withdraw_tokens`] as a convenience
+//! wrapper that derives keys from a [`Signer`].
+
 use anyhow::Result;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_keypair::{Keypair, Signature};
@@ -16,7 +25,7 @@ use spl_token_confidential_transfer_proof_generation::withdraw::WithdrawProofDat
 use std::sync::Arc;
 use tracing::{info, warn};
 
-use crate::solana::{signature_signer::ConfidentialKeys, utils::confidential_keys_for_mint};
+use crate::solana::{confidential_keys::ConfidentialKeys, utils::confidential_keys_for_mint};
 
 /// Withdraw tokens using pre-derived confidential keys.
 ///
@@ -48,10 +57,10 @@ pub async fn withdraw_tokens_with_keys(
         &spl_token_2022::id(),
     );
 
+    // Create a "token" client, to use various helper functions for Token Extensions
+    // Requires block-on in an async context
     let token = {
         let program_client = ProgramRpcClient::new(rpc_client, ProgramRpcClientSendTransaction);
-
-        // Create a "token" client, to use various helper functions for Token Extensions
         Token::new(
             Arc::new(program_client),
             &spl_token_2022::id(),
@@ -61,7 +70,6 @@ pub async fn withdraw_tokens_with_keys(
         )
     };
 
-    // Get recipient token account data
     let token_account = token
         .get_account_info(&recipient_associated_token_address)
         .await?;
@@ -80,7 +88,6 @@ pub async fn withdraw_tokens_with_keys(
     let range_proof_context_state_keypair = Keypair::new();
     let range_proof_context_state_pubkey = range_proof_context_state_keypair.pubkey();
 
-    // Create a withdraw proof data
     let WithdrawProofData {
         equality_proof_data,
         range_proof_data,

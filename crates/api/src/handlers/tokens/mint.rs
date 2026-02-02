@@ -21,8 +21,6 @@ use spl_associated_token_account::get_associated_token_address_with_program_id;
 use std::sync::Arc;
 use tracing::info;
 
-// TODO: make dynamic?
-const TOKEN_DECIMALS: u32 = 9;
 const DECIMAL_MULTIPLIER: f64 = 1_000_000_000.0; // 10^9
 
 #[serde_as]
@@ -178,7 +176,7 @@ async fn execute_token_account_setup(
     global_authority: Arc<dyn Signer + Send + Sync>,
     ata_authority: Arc<dyn Signer + Send + Sync>,
     mint: &Pubkey,
-    confidential_keys: &solana::signature_signer::ConfidentialKeys,
+    confidential_keys: &solana::confidential_keys::ConfidentialKeys,
     is_confidential: bool,
 ) -> Result<bool, AppError> {
     let setup_instructions = setup_token_account_with_keys(
@@ -274,7 +272,7 @@ async fn execute_standard_mint(
 ) -> Result<Signature, AppError> {
     info!("Creating standard mint instructions for mint={:?}", mint);
 
-    let mint_instructions = solana::mint::go(
+    let mint_instructions = solana::mint::build_standard_mint_instructions(
         state.rpc_client.clone(),
         &global_authority.pubkey(),
         global_authority.clone(),

@@ -1,4 +1,4 @@
-use crate::solana::create::create_mint;
+use crate::solana::create::{ConfidentialMintBurnParams, CreateMintParams, create_mint};
 use crate::solana::transaction::build_transaction;
 use crate::{
     AppState,
@@ -63,18 +63,20 @@ pub async fn handler(
     let mint_pubkey = mint_keypair.pubkey();
 
     let global_authority = state.global_authority.clone();
-    let create_mint_instructions = create_mint(
-        state.rpc_client.clone(),
-        global_authority.clone(),
-        global_authority.clone(),
-        state.elgamal_keypair.clone(),
-        state.supply_aes_key.clone(),
-        Some(mint_keypair.clone()),
-        Some(decimals),
+    let create_mint_instructions = create_mint(CreateMintParams {
+        rpc_client: state.rpc_client.clone(),
+        fee_payer: global_authority.clone(),
+        authority: global_authority.clone(),
+        auditor_elgamal_keypair: state.elgamal_keypair.clone(),
+        mint: Some(mint_keypair.clone()),
+        decimals: Some(decimals),
         name,
         symbol,
-        uri,
-    )
+        metadata_uri: uri,
+        confidential_mint_burn: Some(ConfidentialMintBurnParams {
+            supply_aes_key: state.supply_aes_key.clone(),
+        }),
+    })
     .await
     .map_err(|e| {
         error!("failed to create mint: {}", e);

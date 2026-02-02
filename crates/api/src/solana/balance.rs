@@ -1,4 +1,15 @@
-use crate::solana::signature_signer::ConfidentialKeys;
+//! Confidential token balance operations for SPL Token-2022.
+//!
+//! Provides functions to decrypt and query confidential balances on token
+//! accounts that have the confidential transfer extension enabled, as well
+//! as applying pending balance credits to the available balance.
+//!
+//! Two variants are exposed for each operation:
+//! - `*_with_keys` — accepts pre-derived [`ConfidentialKeys`], suitable for
+//!   browser wallet flows where keys are derived from a user signature.
+//! - convenience wrappers — derive keys automatically from a [`Signer`].
+
+use crate::solana::confidential_keys::ConfidentialKeys;
 use crate::solana::{GeneratedInstructions, utils::confidential_keys_for_mint};
 use anyhow::Result;
 use solana_client::nonblocking::rpc_client::RpcClient;
@@ -124,27 +135,18 @@ pub async fn apply_pending_balance_with_keys(
     let token_account_info = rpc_client.get_account(&token_account_pubkey).await?;
     let token_account = StateWithExtensionsOwned::<Account>::unpack(token_account_info.data)?;
 
-    // Unpack the ConfidentialTransferAccount extension portion of the token account data
     let confidential_transfer_account =
         token_account.get_extension::<ConfidentialTransferAccount>()?;
-
-    // ConfidentialTransferAccount extension information needed to construct an `ApplyPendingBalance` instruction.
     let apply_pending_balance_account_info =
         ApplyPendingBalanceAccountInfo::new(confidential_transfer_account);
-
-    // Return the number of times the pending balance has been credited
     let expected_pending_balance_credit_counter =
         apply_pending_balance_account_info.pending_balance_credit_counter();
-
-    // Update the decryptable available balance (add pending balance to available balance)
     let new_decryptable_available_balance = apply_pending_balance_account_info
         .new_decryptable_available_balance(
             confidential_keys.elgamal_keypair.secret(),
             &confidential_keys.ae_key,
         )
         .map_err(|_| TokenError::AccountDecryption)?;
-
-    // Create a `ApplyPendingBalance` instruction
     let apply_pending_balance_instruction = instruction::apply_pending_balance(
         &spl_token_2022::id(),
         &token_account_pubkey,                     // Token account

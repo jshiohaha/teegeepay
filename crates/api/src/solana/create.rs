@@ -1,6 +1,13 @@
+//! SPL Token-2022 mint creation with confidential transfer extensions.
+//!
+//! Builds the full instruction sequence for creating a new mint account
+//! with the ConfidentialTransferMint extension, optional ConfidentialMintBurn
+//! extension, on-chain token metadata, and rent funding — all in a single
+//! composable set of instructions returned via [`GeneratedInstructions`].
+
 use {
     crate::solana::GeneratedInstructions,
-    anyhow::Result,
+    anyhow::{Context, Result},
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_keypair::Keypair,
     solana_signer::Signer,
@@ -18,25 +25,53 @@ use {
     std::sync::Arc,
 };
 
-pub async fn create_mint(
-    rpc_client: Arc<RpcClient>,
-    fee_payer: Arc<dyn Signer + Send + Sync>,
-    // mint and freeze authority are the same for now
-    absolute_authority: Arc<Keypair>,
-    auditor_elgamal_keypair: Arc<ElGamalKeypair>,
-    supply_aes_key: Arc<AeKey>,
-    mint: Option<Arc<Keypair>>,
-    decimals: Option<u8>,
-    name: String,
-    symbol: String,
-    metadata_uri: Option<String>,
-) -> Result<GeneratedInstructions> {
-    let mint = mint.unwrap_or_else(|| Arc::new(Keypair::new()));
+/// Parameters for enabling the confidential mint-burn extension.
+pub struct ConfidentialMintBurnParams {
+    pub supply_aes_key: Arc<AeKey>,
+}
 
-    let mint_authority = absolute_authority.clone();
-    let freeze_authority = absolute_authority.clone();
+/// Parameters for creating a new SPL Token-2022 mint.
+pub struct CreateMintParams {
+    pub rpc_client: Arc<RpcClient>,
+    pub fee_payer: Arc<dyn Signer + Send + Sync>,
+    /// Used as mint authority, freeze authority, and confidential transfer authority.
+    pub authority: Arc<Keypair>,
+    /// ElGamal keypair for auditing confidential operations.
+    pub auditor_elgamal_keypair: Arc<ElGamalKeypair>,
+    /// Keypair for the mint account. A new one is generated if `None`.
+    pub mint: Option<Arc<Keypair>>,
+    /// Token decimals. Defaults to 9.
+    pub decimals: Option<u8>,
+    pub name: String,
+    pub symbol: String,
+    pub metadata_uri: Option<String>,
+    /// Enables the ConfidentialMintBurn extension when `Some`.
+    pub confidential_mint_burn: Option<ConfidentialMintBurnParams>,
+}
+
+pub async fn create_mint(params: CreateMintParams) -> Result<GeneratedInstructions> {
+    let CreateMintParams {
+        rpc_client,
+        fee_payer,
+        authority,
+        auditor_elgamal_keypair,
+        mint,
+        decimals,
+        name,
+        symbol,
+        metadata_uri,
+        confidential_mint_burn,
+    } = params;
+
+    let mint = mint.unwrap_or_else(|| Arc::new(Keypair::new()));
     let decimals = decimals.unwrap_or(9);
     let metadata_uri = metadata_uri.unwrap_or_default();
+
+    let mut extension_types = vec![ExtensionType::ConfidentialTransferMint];
+    if confidential_mint_burn.is_some() {
+        extension_types.push(ExtensionType::ConfidentialMintBurn);
+    }
+    extension_types.push(ExtensionType::MetadataPointer);
 
     let metadata_state = TokenMetadata {
         mint: mint.pubkey(),
@@ -47,118 +82,93 @@ pub async fn create_mint(
     };
     let metadata_extension_space = metadata_state
         .tlv_size_of()
-        .map_err(|e| anyhow::anyhow!("Failed to size token metadata: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to size token metadata: {e}"))?;
 
-    // Confidential Transfer Extension authority
-    // Authority to modify the `ConfidentialTransferMint` configuration and to approve new accounts (if `auto_approve_new_accounts` is false?)
-    let confidential_transfer_authority = absolute_authority.clone();
-
-    // ConfidentialTransferMint extension parameters
-    let confidential_transfer_mint_extension =
-        ExtensionInitializationParams::ConfidentialTransferMint {
-            authority: Some(confidential_transfer_authority.pubkey()),
-            auto_approve_new_accounts: true, // If `true`, no approval is required and new accounts may be used immediately
-            auditor_elgamal_pubkey: Some((*auditor_elgamal_keypair.pubkey()).into()),
-        };
-
-    // Calculate the space required for the mint account with the extensions
-    let base_space = ExtensionType::try_calculate_account_len::<Mint>(&[
-        ExtensionType::ConfidentialTransferMint,
-        ExtensionType::ConfidentialMintBurn,
-        ExtensionType::MetadataPointer,
-    ])?;
-    let final_space = base_space
+    let base_space = ExtensionType::try_calculate_account_len::<Mint>(&extension_types)?;
+    let total_space = base_space
         .checked_add(metadata_extension_space)
-        .ok_or_else(|| anyhow::anyhow!("Mint space calculation overflowed"))?;
-    let space = base_space;
+        .context("Mint space calculation overflowed")?;
 
-    // Calculate the lamports required for the mint account
-    let rent = rpc_client
-        .get_minimum_balance_for_rent_exemption(space)
+    let base_rent = rpc_client
+        .get_minimum_balance_for_rent_exemption(base_space)
         .await
-        .map_err(|e| anyhow::anyhow!("Failed to get minimum balance for rent exemption: {}", e))?;
-    let final_rent = rpc_client
-        .get_minimum_balance_for_rent_exemption(final_space)
+        .context("Failed to get rent exemption for base space")?;
+    let total_rent = rpc_client
+        .get_minimum_balance_for_rent_exemption(total_space)
         .await
-        .map_err(|e| {
-            anyhow::anyhow!(
-                "Failed to get minimum balance for final rent exemption: {}",
-                e
-            )
-        })?;
-    let additional_rent = final_rent.saturating_sub(rent);
+        .context("Failed to get rent exemption for total space")?;
+    let additional_rent = total_rent.saturating_sub(base_rent);
 
-    // Instructions to create the mint account
-    let create_account_instruction = create_account(
-        &fee_payer.pubkey(),
-        &mint.pubkey(),
-        rent,
-        space as u64,
-        &spl_token_2022::id(),
-    );
-
-    // ConfidentialTransferMint extension instruction
-    let confidential_transfer_instruction =
-        confidential_transfer_mint_extension.instruction(&spl_token_2022::id(), &mint.pubkey())?;
-
-    let pod_auditor_elgamal_keypair: PodElGamalPubkey =
-        auditor_elgamal_keypair.pubkey_owned().into();
-    let decryptable_supply_ciphertext = supply_aes_key.encrypt(0).into();
-    let extension_mintburn_init_instruction = confidential_mint_burn::instruction::initialize_mint(
-        &spl_token_2022::id(),
-        &mint.pubkey(),
-        &pod_auditor_elgamal_keypair,
-        &decryptable_supply_ciphertext,
-    )?;
-
-    let metadata_pointer_extension = ExtensionInitializationParams::MetadataPointer {
-        authority: Some(mint_authority.pubkey()),
-        metadata_address: Some(mint.pubkey()),
-    };
-    let metadata_pointer_instruction =
-        metadata_pointer_extension.instruction(&spl_token_2022::id(), &mint.pubkey())?;
+    let token_program = &spl_token_2022::id();
+    let mint_pubkey = &mint.pubkey();
 
     let mut instructions = vec![
-        create_account_instruction,
-        confidential_transfer_instruction,
-        extension_mintburn_init_instruction,
-        metadata_pointer_instruction,
+        // 1. Create the mint account
+        create_account(
+            &fee_payer.pubkey(),
+            mint_pubkey,
+            base_rent,
+            base_space as u64,
+            token_program,
+        ),
+        // 2. ConfidentialTransferMint extension
+        ExtensionInitializationParams::ConfidentialTransferMint {
+            authority: Some(authority.pubkey()),
+            auto_approve_new_accounts: true,
+            auditor_elgamal_pubkey: Some((*auditor_elgamal_keypair.pubkey()).into()),
+        }
+        .instruction(token_program, mint_pubkey)?,
     ];
 
-    // Initialize the mint account
-    //TODO: Use program-2022/src/extension/confidential_transfer/instruction/initialize_mint()
-    let initialize_mint_instruction = initialize_mint(
-        &spl_token_2022::id(),
-        &mint.pubkey(),
-        &mint_authority.pubkey(),
-        Some(&freeze_authority.pubkey()),
-        decimals,
-    )?;
-
-    instructions.push(initialize_mint_instruction);
-
-    if additional_rent > 0 {
-        let transfer_rent_instruction =
-            transfer(&fee_payer.pubkey(), &mint.pubkey(), additional_rent);
-        instructions.push(transfer_rent_instruction);
+    // 3. ConfidentialMintBurn extension (conditional)
+    if let Some(ref cmb) = confidential_mint_burn {
+        let pod_auditor_pubkey: PodElGamalPubkey = auditor_elgamal_keypair.pubkey_owned().into();
+        let decryptable_supply = cmb.supply_aes_key.encrypt(0).into();
+        instructions.push(confidential_mint_burn::instruction::initialize_mint(
+            token_program,
+            mint_pubkey,
+            &pod_auditor_pubkey,
+            &decryptable_supply,
+        )?);
     }
 
-    let initialize_metadata_instruction = spl_token_metadata_interface::instruction::initialize(
-        &spl_token_2022::id(),
+    instructions.extend([
+        // 4. MetadataPointer extension
+        ExtensionInitializationParams::MetadataPointer {
+            authority: Some(authority.pubkey()),
+            metadata_address: Some(mint.pubkey()),
+        }
+        .instruction(token_program, mint_pubkey)?,
+        // 5. Initialize the mint
+        initialize_mint(
+            token_program,
+            mint_pubkey,
+            &authority.pubkey(),
+            Some(&authority.pubkey()),
+            decimals,
+        )?,
+    ]);
+
+    // 6. Transfer additional rent for metadata if needed
+    if additional_rent > 0 {
+        instructions.push(transfer(&fee_payer.pubkey(), mint_pubkey, additional_rent));
+    }
+
+    // 7. Initialize token metadata
+    instructions.push(spl_token_metadata_interface::instruction::initialize(
+        token_program,
+        mint_pubkey,
+        &authority.pubkey(),
         &mint.pubkey(),
-        &mint_authority.pubkey(),
-        &mint.pubkey(),
-        &mint_authority.pubkey(),
+        &authority.pubkey(),
         name,
         symbol,
         metadata_uri,
-    );
-
-    instructions.push(initialize_metadata_instruction);
+    ));
 
     let mut additional_signers: Vec<Arc<dyn Signer + Send + Sync>> = vec![mint.clone()];
-    if fee_payer.pubkey() != mint_authority.pubkey() {
-        additional_signers.push(mint_authority);
+    if fee_payer.pubkey() != authority.pubkey() {
+        additional_signers.push(authority);
     }
 
     Ok(GeneratedInstructions {

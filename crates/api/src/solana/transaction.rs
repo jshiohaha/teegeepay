@@ -47,7 +47,8 @@ pub async fn build_transaction_with_signers(
         None => rpc_client.get_latest_blockhash().await?,
     };
 
-    // TODO: add compute unit ix's?
+    // NOTE: we don't add compute unit ix's/priority fee ix's by default because some transactions are going
+    // to be near the size limits
     let mut transaction: VersionedTransaction = VersionedTransaction {
         signatures: vec![],
         message: VersionedMessage::V0(Message::try_compile(
