@@ -182,10 +182,14 @@ pub async fn build_confidential_mint_transactions(
         additional_signers: vec![],
     });
 
-    let equality_proof_location = ProofLocation::ContextStateAccount(&equality_ctx.pubkey());
+    let equality_ctx_pubkey = equality_ctx.pubkey();
+    let ciphertext_ctx_pubkey = ciphertext_ctx.pubkey();
+    let range_ctx_pubkey = range_ctx.pubkey();
+
+    let equality_proof_location = ProofLocation::ContextStateAccount(&equality_ctx_pubkey);
     let ciphertext_validity_proof_location =
-        ProofLocation::ContextStateAccount(&ciphertext_ctx.pubkey());
-    let range_proof_location = ProofLocation::ContextStateAccount(&range_ctx.pubkey());
+        ProofLocation::ContextStateAccount(&ciphertext_ctx_pubkey);
+    let range_proof_location = ProofLocation::ContextStateAccount(&range_ctx_pubkey);
 
     let mint_amount_auditor_ciphertext_lo =
         ciphertext_validity_proof_data_with_ciphertext.ciphertext_lo;

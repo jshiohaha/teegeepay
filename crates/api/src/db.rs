@@ -88,6 +88,7 @@ pub async fn get_user_by_user_id(pool: &PgPool, user_id: &str) -> Result<Option<
 
 /// Result of upserting a telegram user, includes whether a reserved wallet was claimed.
 pub struct UpsertTelegramUserResult {
+    #[allow(dead_code)]
     pub user: TelegramUserRow,
     pub claimed_reserved_wallet: bool,
 }

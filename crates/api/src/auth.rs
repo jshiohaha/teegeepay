@@ -23,6 +23,7 @@ pub struct AuthClaims {
 #[derive(Debug, Clone)]
 pub struct AuthUser {
     pub telegram_user_id: i64,
+    #[allow(dead_code)]
     pub username: Option<String>,
 }
 

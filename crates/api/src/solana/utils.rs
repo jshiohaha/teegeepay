@@ -32,24 +32,8 @@ pub fn confidential_keys_for_mint(
     owner: Arc<dyn Signer + Send + Sync>,
     mint: &Pubkey,
 ) -> Result<ConfidentialKeys> {
-    let ata = get_associated_token_address_with_program_id(
-        &owner.pubkey(),
-        mint,
-        &spl_token_2022::id(),
-    );
+    let ata =
+        get_associated_token_address_with_program_id(&owner.pubkey(), mint, &spl_token_2022::id());
     ConfidentialKeys::from_signer(owner.as_ref(), &ata.to_bytes())
-        .map_err(|e| anyhow::anyhow!("Failed to derive confidential keys: {}", e))
-}
-
-/// Derive confidential keys from pre-computed signature bytes (non-custodial).
-///
-/// The client signs the ATA address bytes and sends the 64-byte signature.
-pub fn confidential_keys_from_signature(
-    owner: &Pubkey,
-    mint: &Pubkey,
-    signature_bytes: &[u8; 64],
-) -> Result<ConfidentialKeys> {
-    let ata = get_associated_token_address_with_program_id(owner, mint, &spl_token_2022::id());
-    ConfidentialKeys::from_signature_bytes(*owner, signature_bytes, &ata.to_bytes())
         .map_err(|e| anyhow::anyhow!("Failed to derive confidential keys: {}", e))
 }

@@ -63,6 +63,7 @@ struct TransferContext {
     /// (`ciphertext_lo` and `ciphertext_hi`) that encode the transfer amount.
     ciphertext_validity_proof_account_with_ciphertext: ProofAccountWithCiphertext,
     sender_associated_token_address: Pubkey,
+    #[allow(dead_code)]
     recipient: Pubkey,
     recipient_associated_token_address: Pubkey,
     /// Snapshot of the sender's confidential transfer extension state, used to
