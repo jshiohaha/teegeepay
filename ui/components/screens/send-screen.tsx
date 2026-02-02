@@ -38,9 +38,11 @@ export function SendScreen() {
             const transferType = detectTransferType(trimmedRecipient);
             if (!transferType) {
                 if (trimmedRecipient.startsWith("@")) {
-                    newErrors.recipient = "Invalid Telegram username (must be 5-32 characters)";
+                    newErrors.recipient =
+                        "Invalid Telegram username (must be 5-32 characters)";
                 } else {
-                    newErrors.recipient = "Enter a valid @username or Solana address";
+                    newErrors.recipient =
+                        "Enter a valid @username or Solana address";
                 }
             }
         }
@@ -50,7 +52,7 @@ export function SendScreen() {
             newErrors.amount = "Please enter an amount";
         } else if (isNaN(amountNum) || amountNum <= 0) {
             newErrors.amount = "Please enter a valid amount";
-        } else if (amountNum > wallet.cusd.total) {
+        } else if (amountNum > wallet.tgusd.total) {
             newErrors.amount = "Insufficient balance";
         }
 
@@ -58,13 +60,17 @@ export function SendScreen() {
 
         if (Object.keys(newErrors).length === 0) {
             const transferType = detectTransferType(trimmedRecipient)!;
-            setTransaction({ recipient: trimmedRecipient, amount, transferType });
+            setTransaction({
+                recipient: trimmedRecipient,
+                amount,
+                transferType,
+            });
             setCurrentScreen("review");
         }
     };
 
     const handleMaxAmount = () => {
-        setAmount(wallet.cusd.total.toString());
+        setAmount(wallet.tgusd.total.toString());
     };
 
     return (
@@ -77,7 +83,9 @@ export function SendScreen() {
                 >
                     <ChevronLeft className="w-5 h-5 text-foreground" />
                 </button>
-                <span className="font-semibold text-foreground">Send cUSD</span>
+                <span className="font-semibold text-foreground">
+                    Send tgUSD
+                </span>
             </div>
 
             {/* Form */}
@@ -126,7 +134,7 @@ export function SendScreen() {
                                 onClick={handleMaxAmount}
                                 className="text-xs font-medium text-muted-foreground hover:underline hover:cursor-pointer"
                             >
-                                Max: {wallet.cusd.total} cUSD
+                                Max: {wallet.tgusd.total} tgUSD
                             </button>
                         </div>
                         <div className="relative">
@@ -149,7 +157,7 @@ export function SendScreen() {
                             <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-muted-foreground">
                                 <Wallet className="w-4 h-4" />
                                 <span className="text-sm font-medium">
-                                    cUSD
+                                    tgUSD
                                 </span>
                             </div>
                         </div>

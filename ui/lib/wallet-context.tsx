@@ -31,7 +31,7 @@ interface TokenBalance {
 interface WalletData {
     address: string;
     solBalance: number;
-    cusd: TokenBalance;
+    tgusd: TokenBalance;
 }
 
 export interface TransactionStep {
@@ -71,11 +71,11 @@ interface WalletContextType {
     mint: () => Promise<string>;
     transfer: (
         recipient: string,
-        amount: string,
+        amount: string
     ) => Promise<TransactionResult[]>;
     transferByTelegram: (
         username: string,
-        amount: string,
+        amount: string
     ) => Promise<TransactionResult[]>;
     transaction: TransactionData;
     setTransaction: (data: Partial<TransactionData>) => void;
@@ -93,7 +93,7 @@ interface WalletContextType {
 const emptyWallet: WalletData = {
     address: "",
     solBalance: 0,
-    cusd: {
+    tgusd: {
         private: 0,
         public: 0,
         total: 0,
@@ -193,7 +193,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     // Simple authenticated fetch - always check localStorage as fallback
     const authFetch = async <T,>(
         path: string,
-        init?: RequestInit,
+        init?: RequestInit
     ): Promise<T> => {
         // Get token from context or localStorage (context might be stale)
         const currentToken = token ?? localStorage.getItem("tg_auth_token");
@@ -220,10 +220,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     };
 
     const fetchBalances = async (
-        address: string,
-    ): Promise<{ solBalance: number; cusd: TokenBalance }> => {
+        address: string
+    ): Promise<{ solBalance: number; tgusd: TokenBalance }> => {
         let solBalance = 0;
-        let cusd: TokenBalance = { private: 0, public: 0, total: 0 };
+        let tgusd: TokenBalance = { private: 0, public: 0, total: 0 };
 
         try {
             const [solResponse, tokenResponse] = await Promise.allSettled([
@@ -232,14 +232,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                     {
                         method: "GET",
                         headers: { "Content-Type": "application/json" },
-                    },
+                    }
                 ),
                 authFetch<ApiResponse<BalanceResponse>>(
                     `/api/wallets/${address}/balance?mint=${process.env.NEXT_PUBLIC_CUSD_MINT}`,
                     {
                         method: "GET",
                         headers: { "Content-Type": "application/json" },
-                    },
+                    }
                 ).catch((error) => {
                     // console.warn("Failed to fetch token balance:", error);
                     return {
@@ -260,20 +260,20 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             if (tokenResponse.status === "fulfilled") {
                 const publicBalance =
                     Number.parseFloat(
-                        tokenResponse.value.data?.publicBalance ?? "0",
+                        tokenResponse.value.data?.publicBalance ?? "0"
                     ) /
                     10 ** 9;
                 const privateBalance =
                     Number.parseFloat(
                         tokenResponse.value.data?.encryptedBalance.available ??
-                            "0",
+                            "0"
                     ) +
                     Number.parseFloat(
                         tokenResponse.value.data?.encryptedBalance.pending ??
-                            "0",
+                            "0"
                     );
                 const availableBalance = privateBalance / 10 ** 9;
-                cusd = {
+                tgusd = {
                     public: publicBalance,
                     private: availableBalance,
                     total: publicBalance + availableBalance,
@@ -283,7 +283,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             console.error("Failed to fetch balances:", error);
         }
 
-        return { solBalance, cusd };
+        return { solBalance, tgusd };
     };
 
     useEffect(() => {
@@ -297,12 +297,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
                 if (response.data.pubkeys.length > 0) {
                     const address = response.data.pubkeys[0];
-                    const { solBalance, cusd } = await fetchBalances(address);
+                    const { solBalance, tgusd } = await fetchBalances(address);
 
                     setWallet({
                         address,
                         solBalance,
-                        cusd,
+                        tgusd,
                     });
                     setIsWalletCreated(true);
 
@@ -332,14 +332,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                 {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                },
+                }
             );
 
             const address = response.data.pubkey;
             setWallet({
                 address,
                 solBalance: 0,
-                cusd: { private: 0, public: 0, total: 0 },
+                tgusd: { private: 0, public: 0, total: 0 },
             });
             setIsWalletCreated(true);
             setCurrentScreen("balance");
@@ -361,7 +361,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ amount: "1" }),
-            },
+            }
         );
 
         const airdropAmount = Number.parseFloat(response.data.amount);
@@ -372,11 +372,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     };
 
     const refreshBalance = async () => {
-        const { solBalance, cusd } = await fetchBalances(wallet.address);
+        const { solBalance, tgusd } = await fetchBalances(wallet.address);
         setWallet((prev) => ({
             ...prev,
             solBalance,
-            cusd,
+            tgusd,
         }));
     };
 
@@ -388,7 +388,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ mint, amount: "1.0" }),
-            },
+            }
         );
 
         return response.data.signature;
@@ -407,7 +407,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                     mint: process.env.NEXT_PUBLIC_CUSD_MINT,
                     amount,
                 }),
-            },
+            }
         );
 
         console.log("Transfer", response.data);
@@ -427,7 +427,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                     mint: process.env.NEXT_PUBLIC_CUSD_MINT,
                     amount,
                 }),
-            },
+            }
         );
 
         console.log("Telegram transfer", response.data);
@@ -463,7 +463,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     };
 
     const executeConversion = async (
-        amount: string,
+        amount: string
     ): Promise<TransactionResult[]> => {
         const mint = process.env.NEXT_PUBLIC_CUSD_MINT;
         const amountValue = Number.parseFloat(amount);
@@ -484,7 +484,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                         amount: amountInBaseUnits.toString(),
                         decimals: 9,
                     }),
-                },
+                }
             );
 
             return response.data.transactions;
@@ -500,7 +500,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                         amount: amountInBaseUnits.toString(),
                         decimals: 9,
                     }),
-                },
+                }
             );
 
             return response.data.transactions;

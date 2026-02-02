@@ -141,7 +141,7 @@ export function BalanceScreen() {
                     </div>
                 </div>
 
-                {/* cUSD Balance Card - Primary */}
+                {/* tgUSD Balance Card - Primary */}
                 <Card className="bg-card border-border shadow-sm py-2">
                     <CardContent className="p-5">
                         <div className="flex items-center justify-between mb-3">
@@ -178,10 +178,10 @@ export function BalanceScreen() {
                         {/* Total Balance */}
                         <div className="flex items-baseline gap-2 mb-4">
                             <span className="text-4xl font-bold tracking-tight text-card-foreground">
-                                {formatBalance(wallet.cusd.total)}
+                                {formatBalance(wallet.tgusd.total)}
                             </span>
                             <span className="text-lg font-medium text-muted-foreground">
-                                cUSD
+                                tgUSD
                             </span>
                         </div>
 
@@ -195,13 +195,15 @@ export function BalanceScreen() {
                                             Private
                                         </span>
                                         <span className="text-sm font-semibold text-foreground">
-                                            {formatBalance(wallet.cusd.private)}
+                                            {formatBalance(
+                                                wallet.tgusd.private
+                                            )}
                                         </span>
                                     </div>
                                 </div>
                                 <button
                                     onClick={() => startConversion("toPublic")}
-                                    disabled={wallet.cusd.private === 0}
+                                    disabled={wallet.tgusd.private === 0}
                                     className="flex gap-1.5 px-1 text-xs font-medium text-muted-foreground rounded-md disabled:opacity-40 disabled:cursor-not-allowed opacity-40 cursor-not-allowed hover:cursor-not-allowed"
                                 >
                                     Make Public
@@ -215,15 +217,15 @@ export function BalanceScreen() {
                                             Public
                                         </span>
                                         <span className="text-sm font-semibold text-foreground">
-                                            {formatBalance(wallet.cusd.public)}
+                                            {formatBalance(wallet.tgusd.public)}
                                         </span>
                                     </div>
                                 </div>
                                 <button
                                     onClick={() => startConversion("toPrivate")}
-                                    disabled={wallet.cusd.public === 0}
+                                    disabled={wallet.tgusd.public === 0}
                                     className={`flex gap-1.5 px-1 text-xs font-medium text-muted-foreground rounded-md disabled:opacity-40 disabled:cursor-not-allowed ${
-                                        wallet.cusd.public === 0
+                                        wallet.tgusd.public === 0
                                             ? "opacity-40 cursor-not-allowed"
                                             : "hover:cursor-pointer hover:text-foreground transition-colors"
                                     }`}
@@ -277,7 +279,7 @@ export function BalanceScreen() {
                         ) : (
                             <span className="flex items-center gap-2">
                                 <Coins className="w-4 h-4 mr-2" />
-                                Mint cUSD
+                                Mint tgUSD
                             </span>
                         )}
                     </Button>
@@ -287,7 +289,7 @@ export function BalanceScreen() {
                         disabled={isMinting || isRefreshing}
                     >
                         <ArrowUpRight className="w-4 h-4 mr-2" />
-                        Send cUSD
+                        Send tgUSD
                     </Button>
                 </div>
             </div>

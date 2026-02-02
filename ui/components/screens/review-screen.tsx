@@ -54,12 +54,12 @@ export function ReviewScreen() {
                 const username = transaction.recipient.replace(/^@/, "");
                 signatures = await transferByTelegram(
                     username,
-                    adjustedAmount.toString(),
+                    adjustedAmount.toString()
                 );
             } else {
                 signatures = await transfer(
                     transaction.recipient,
-                    adjustedAmount.toString(),
+                    adjustedAmount.toString()
                 );
             }
 
@@ -87,7 +87,7 @@ export function ReviewScreen() {
                     : "Failed to transfer tokens";
             const formattedMessage = message.replace(
                 /API error \(\d+\):\s*/u,
-                "",
+                ""
             );
 
             setTransferError(formattedMessage);
@@ -105,7 +105,11 @@ export function ReviewScreen() {
             <div className="flex items-center gap-3 p-4 border-b border-border">
                 <button
                     onClick={() => setCurrentScreen("send")}
-                    className={`flex items-center justify-center w-8 h-8 rounded-full ${isConfirming ? "opacity-50 cursor-not-allowed" : "hover:cursor-pointer"}`}
+                    className={`flex items-center justify-center w-8 h-8 rounded-full ${
+                        isConfirming
+                            ? "opacity-50 cursor-not-allowed"
+                            : "hover:cursor-pointer"
+                    }`}
                     disabled={isConfirming}
                 >
                     <ChevronLeft className="w-5 h-5 text-foreground" />
@@ -137,7 +141,7 @@ export function ReviewScreen() {
                                 Amount
                             </p>
                             <p className="text-sm font-medium text-foreground">
-                                {transaction.amount} cUSD
+                                {transaction.amount} tgUSD
                             </p>
                         </div>
 
@@ -159,7 +163,7 @@ export function ReviewScreen() {
                                         <button className="flex-1 flex items-center justify-between rounded-lg">
                                             <span className="font-mono text-sm text-foreground">
                                                 {truncateString(
-                                                    transaction.recipient,
+                                                    transaction.recipient
                                                 )}
                                             </span>
                                         </button>
@@ -171,7 +175,7 @@ export function ReviewScreen() {
                                                     className="h-[32px] w-[32px] shrink-0 hover:cursor-pointer"
                                                     onClick={() =>
                                                         openAddressInExplorer(
-                                                            transaction.recipient,
+                                                            transaction.recipient
                                                         )
                                                     }
                                                 >
@@ -233,7 +237,9 @@ export function ReviewScreen() {
                         </span>
                     </Button>
                     <Button
-                        className={`w-full h-10 bg-transparent text-foreground hover:bg-transparent hover:cursor-pointer border border-[#ececec] border-opacity-50 ${isConfirming ? "opacity-50 cursor-not-allowed" : ""}`}
+                        className={`w-full h-10 bg-transparent text-foreground hover:bg-transparent hover:cursor-pointer border border-[#ececec] border-opacity-50 ${
+                            isConfirming ? "opacity-50 cursor-not-allowed" : ""
+                        }`}
                         onClick={() => setCurrentScreen("send")}
                         disabled={isConfirming}
                     >

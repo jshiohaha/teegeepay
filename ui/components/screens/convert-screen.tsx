@@ -26,8 +26,8 @@ export function ConvertScreen() {
 
     const isToPrivate = conversion.direction === "toPrivate";
     const availableBalance = isToPrivate
-        ? wallet.cusd.public
-        : wallet.cusd.private;
+        ? wallet.tgusd.public
+        : wallet.tgusd.private;
     const normalizedAvailableBalance = Number.isFinite(availableBalance)
         ? availableBalance
         : 0;
@@ -64,7 +64,7 @@ export function ConvertScreen() {
             setTransactionMessage(
                 isToPrivate
                     ? "Your balance is now private."
-                    : "Your balance is now public.",
+                    : "Your balance is now public."
             );
             setCurrentScreen("status");
             await refreshBalance();
@@ -92,7 +92,11 @@ export function ConvertScreen() {
         <div className="flex flex-col h-full">
             {/* Header */}
             <div
-                className={`flex items-center gap-3 p-4 border-b border-border ${isConverting ? "opacity-50 cursor-not-allowed" : "hover:cursor-pointer"}`}
+                className={`flex items-center gap-3 p-4 border-b border-border ${
+                    isConverting
+                        ? "opacity-50 cursor-not-allowed"
+                        : "hover:cursor-pointer"
+                }`}
             >
                 <button
                     onClick={() => setCurrentScreen("balance")}
@@ -147,7 +151,7 @@ export function ConvertScreen() {
                             className="text-xs font-medium text-muted-foreground hover:underline hover:cursor-pointer"
                         >
                             Max: {formatBalance(normalizedAvailableBalance)}{" "}
-                            cUSD
+                            tgUSD
                         </button>
                     </div>
                     <div className="relative">
@@ -165,7 +169,7 @@ export function ConvertScreen() {
                             }`}
                         />
                         <div className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">
-                            cUSD
+                            tgUSD
                         </div>
                     </div>
                     {error && (
@@ -205,7 +209,9 @@ export function ConvertScreen() {
                         )}
                     </Button>
                     <Button
-                        className={`w-full h-10 bg-transparent text-foreground hover:bg-transparent hover:cursor-pointer hover:border hover:border-[#ececec] hover:border-opacity-50 ${isConverting ? "opacity-50 cursor-not-allowed" : ""}`}
+                        className={`w-full h-10 bg-transparent text-foreground hover:bg-transparent hover:cursor-pointer hover:border hover:border-[#ececec] hover:border-opacity-50 ${
+                            isConverting ? "opacity-50 cursor-not-allowed" : ""
+                        }`}
                         onClick={() => setCurrentScreen("balance")}
                         disabled={isConverting}
                     >
