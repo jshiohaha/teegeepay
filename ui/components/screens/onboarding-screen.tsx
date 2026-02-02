@@ -27,7 +27,9 @@ export function OnboardingScreen() {
             setIsCreating(false);
         } catch (error) {
             setDebugMsg(
-                `Error: ${error instanceof Error ? error.message : String(error)}`,
+                `Error: ${
+                    error instanceof Error ? error.message : String(error)
+                }`
             );
             setIsCreating(false);
         }
@@ -42,7 +44,7 @@ export function OnboardingScreen() {
                         <Wallet className="w-4 h-4 text-primary-foreground" />
                     </div> */}
                     <span className="font-semibold text-foreground">
-                        Cypherpay Wallet
+                        TeeGee Pay Wallet
                     </span>
                 </div>
             </div>

@@ -17,7 +17,7 @@ This project started during the [2026 Solana Privacy Hackathon](https://solana.c
 -   Enable frictionless confidential transfers to a Solana address or other Telegram users
 -   Quickly check public and private balances and compare against explorer data
 -   Custodial user kyepairs stored in a database (most basic, insecure hackathon demo), extensible to other solutions — AWS KMS, MPC solutions, etc
-    -   The [aws-kms](https://github.com/jshiohaha/cypherpay/tree/aws-kms) branch contains an example of how one might use KMS for keypair managemeent. It's not included in the main branch because the non-zero cost of working with KMS. For simplicity and hackathon purposes, we maintain the most simple implementation.
+    -   The [aws-kms](https://github.com/jshiohaha/teegeepay/tree/aws-kms) branch contains an example of how one might use KMS for keypair managemeent. It's not included in the main branch because the non-zero cost of working with KMS. For simplicity and hackathon purposes, we maintain the most simple implementation.
 -   Perform mint, transfer, and check blalance on an SPL token the following extensions: confidential transfer, confidential mint burn, metadata pointer, and token metadata
 
 ## Future Development
