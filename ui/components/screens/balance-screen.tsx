@@ -202,11 +202,7 @@ export function BalanceScreen() {
                                 <button
                                     onClick={() => startConversion("toPublic")}
                                     disabled={wallet.cusd.private === 0}
-                                    className={`flex gap-1.5 px-1 text-xs font-medium text-muted-foreground rounded-md disabled:opacity-40 disabled:cursor-not-allowed ${
-                                        wallet.cusd.private === 0
-                                            ? "opacity-40 cursor-not-allowed"
-                                            : "hover:cursor-pointer hover:text-foreground transition-colors"
-                                    }`}
+                                    className="flex gap-1.5 px-1 text-xs font-medium text-muted-foreground rounded-md disabled:opacity-40 disabled:cursor-not-allowed opacity-40 cursor-not-allowed hover:cursor-not-allowed"
                                 >
                                     Make Public
                                 </button>
