@@ -1,6 +1,6 @@
 # TeeGee Pay
 
-### Send crypto confidentially in Telegram, on Solana
+### Transact confidentially in Telegram, on Solana
 
 ![cover](./assets/images/cover.png)
 
