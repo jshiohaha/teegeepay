@@ -13,7 +13,7 @@ This project started during the [2026 Solana Privacy Hackathon](https://solana.c
 ## Features
 
 > 💡 The confidential mint/burn extension is not currently supported in the solana explorer. I opened a PR to update as part of the 2026 privacy hackathon, but you might need to run locally until the extension is supported if you want to view tokens with this extension enabled.
-> https://github.com/solana-foundation/explorer/pull/836/changes#r2757682446
+> https://github.com/solana-foundation/explorer/pull/836
 
 -   No complex jargon, no infinite transaction signing experiences, zero friction to get started
 -   Use the features of Token2022 confidential transfers: deposit, withdraw, transfer
